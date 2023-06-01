@@ -1,0 +1,97 @@
+plugins {
+    id 'java'
+}
+
+version = "1.0.0-SNAPSHOT"
+
+repositories {
+  mavenCentral()
+}
+
+ext {
+    vertxVersion = "4.4.1"
+    jacksonVersion = "2.14.2"
+    junitJupiterVersion = "5.9.1"
+
+    mainVerticleName = "io.vantiq.svcconnector.MainVerticle"
+    launcherClassName = "io.vertx.core.Launcher"
+
+    watchForChange = "src/**/*"
+    doOnChange = "${projectDir}/gradlew classes"
+}
+
+apply plugin: 'application'
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: "com.chrisgahlert.gradle-dcompose-plugin"
+
+ext {
+}
+
+// Set up registry credentials
+dcompose {
+    // The credentials here should be stored in gradle.properties.
+    dockerClientConfig = {
+        withRegistryUsername dockerHubUser
+        withRegistryPassword dockerHubPassword
+    }
+    
+    registry('quay.io') {
+        withUsername quayUser
+        withPassword quayPassword
+    }
+}
+
+applicationName = 'service-connector'
+mainClassName = 'io.vantiq.svcconnector.MainVerticle'
+
+application {
+  mainClass.set(launcherClassName)
+}
+
+dependencies {
+  implementation(platform("io.vertx:vertx-stack-depchain:$vertxVersion"))
+  implementation("io.vertx:vertx-core")
+  implementation("io.vertx:vertx-web")
+  implementation("com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}")
+  implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${jacksonVersion}")
+  implementation("com.google.guava:guava:31.1-jre")  {
+      constraints {
+          implementation('com.google.errorprone:error_prone_annotations:2.18.0') {
+              because 'to avoid duplicate versions'
+          }
+      }
+  }
+  implementation("org.apache.commons:commons-lang3:3.12.0")
+  implementation("org.projectlombok:lombok:1.18.26")
+  implementation("org.slf4j:slf4j-api:1.7.36")
+  implementation("ch.qos.logback:logback-classic:1.2.10")
+
+  testImplementation("io.vertx:vertx-junit5")
+  testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
+}
+
+java {
+  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_11
+}
+
+//tasks.withType<ShadowJar> {
+//  archiveClassifier.set("fat")
+//  manifest {
+//    attributes(mapOf("Main-Verticle" to mainVerticleName))
+//  }
+//  mergeServiceFiles()
+//}
+
+shadowJar {
+    archiveBaseName.set('service-connector')
+    manifest {
+        attributes 'Main-Verticle': 'io.vantiq.svcconnector.MainVerticle'
+        attributes 'Main-Command': 'run'
+    }
+    zip64 true
+}
+
+//tasks.withType<JavaExec> {
+//  args = listOf("run", mainVerticleName, "--redeploy=$watchForChange", "--launcher-class=$launcherClassName", "--on-redeploy=$doOnChange")
+//}
