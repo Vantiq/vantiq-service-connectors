@@ -74,7 +74,7 @@ The rest of the calls correspond to the standard data manipulation operations su
   - selectOne
   - delete
 
-What follows is a general description of how things work.  For details in Java, please see the [Java SDK](scjsdk/README.md).
+What follows is a general description of how things work.  For details in Java, please see the [Java SDK](sc-jsdk-sync/README.md).
 
 ## Messages
 
