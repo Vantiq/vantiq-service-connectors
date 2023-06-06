@@ -3,9 +3,12 @@ package io.vantiq.atlasConnector;
 import static com.mongodb.client.model.Projections.exclude;
 import static com.mongodb.client.model.Projections.include;
 
+import com.google.common.collect.Lists;
 import com.mongodb.client.model.CountOptions;
 import com.mongodb.client.model.CreateCollectionOptions;
 import com.mongodb.client.model.IndexOptions;
+import com.mongodb.client.model.InsertManyOptions;
+import com.mongodb.client.model.UpdateOptions;
 import com.mongodb.reactivestreams.client.FindPublisher;
 import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoCollection;
@@ -21,6 +24,7 @@ import org.bson.types.ObjectId;
 import org.reactivestreams.Publisher;
 
 import java.math.BigDecimal;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -83,6 +87,11 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 .doOnComplete(() -> {
                     // track the database for collection in the storage name of the proposed type
                     proposedType.put("storageName", config.obtainDefaultDatabase() + "." + proposedType.get("name"));
+                    
+                    // set up the _id property in the proposed type
+                    //noinspection unchecked
+                    Map<String, Object> properties = (Map<String, Object>) proposedType.get("properties");
+                    properties.put("_id", createIdProperty());
                 }).onErrorResumeNext(t -> {
                     // if the collection already exists, we're good
                     if (t.getMessage().contains("already exists")) {
@@ -102,7 +111,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 return Flowable.concat(
                     // delete indexes that are no longer in the proposed type
                     Flowable.fromIterable(delete).flatMap(index ->
-                        collection.dropIndex(computeKeySet(index))
+                        collection.dropIndex(computeIndexKeySet(index))
                     ),
                     // add indexes that are in the proposed type but not in the existing type
                     Flowable.fromIterable(add).flatMap(addIndex -> {
@@ -123,13 +132,24 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                         if (options.containsKey("expireAfterSeconds")) {
                             idxOptions.expireAfter((Long)options.get("expireAfterSeconds"), TimeUnit.SECONDS);
                         }
-                        return collection.createIndex(computeKeySet(addIndex), idxOptions);
+                        return collection.createIndex(computeIndexKeySet(addIndex), idxOptions);
                 }));
             }).ignoreElements().andThen(Single.just(proposedType));
         }
     }
 
-    static Document computeKeySet(Map<String, Object> index) {
+    private static Map<String, Object> createIdProperty() {
+        Map<String, Object> idProperty = new HashMap<>();
+        idProperty.put("type", "String");
+        idProperty.put("system", true);
+        idProperty.put("required", false);
+        idProperty.put("indexed", true);
+        idProperty.put("unique", false);
+        idProperty.put("multi", false);
+        return idProperty;
+    }
+
+    static Document computeIndexKeySet(Map<String, Object> index) {
         // convert to the mongo form of the key structure
         Document keySet = new Document();
         //noinspection unchecked
@@ -207,17 +227,57 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
     
     @Override
-    public Flowable<Map<String, Object>> insertMany(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> values) {
-        return null;
+    public Flowable<Map<String, Object>>
+    insertMany(String storageName, Map<String, Object> storageManagerReference,List<Map<String, Object>> values) {
+        List<Document> docs = new ArrayList<>();
+        values.forEach(value -> {
+            docs.add(new Document(value).append("_id", new ObjectId()));
+        });
+
+        return collectionFromStorageName(storageName, collection -> {
+            InsertManyOptions insertOpts = new InsertManyOptions().ordered(false);
+            return collection.insertMany(docs, insertOpts);
+        }).flatMap(result -> Flowable.fromIterable(docs))
+          .map(AtlasStorageMgr::externalizeId);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public Maybe<Map<String, Object>> update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values, Map<String, Object> qual) {
-        return null;
+        Map<String, Object> unsetVals = values.containsKey("$unset") ?
+                (Map<String, Object>)values.remove("$unset") : new HashMap<>();
+        Map<String, Object> setVals = values.containsKey("$set") ?
+                (Map<String, Object>)values.remove("$set") : values;
+
+        return collectionFromStorageName(storageName, collection -> {
+            Document cleanQual = new Document((Map<String, Object>)cleanQualMap(qual));
+            Document updateVals = new Document();
+            if (!setVals.isEmpty()) {
+                if (setVals.containsKey("$rename")) {
+                    updateVals.put("$rename", setVals.get("$rename"));
+                } else {
+                    updateVals.put("$set", setVals);
+                }
+            }
+            if (!unsetVals.isEmpty()) {
+                updateVals.put("$unset", unsetVals);
+            }
+            UpdateOptions updateOptions = new UpdateOptions().upsert(false);
+            return collection.updateMany(cleanQual, updateVals, updateOptions);
+        }).singleElement().flatMap(updateResult -> {
+            if (updateResult.getModifiedCount() == 0) {
+                return Maybe.empty();
+            }
+            // not entirely sure what to return here... don't want to issue a find over the qual to get the updated
+            // data.
+            return Maybe.just(setVals);
+        });
     }
 
     @Override
-    public Single<Integer> count(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual, Map<String, Object> options) {
+    public Single<Integer>
+    count(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual,
+          Map<String, Object> options) {
         if (options == null) {
             options = Collections.emptyMap();
         }
@@ -232,7 +292,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             //noinspection unchecked
             Document query = new Document((Map<String, Object>)cleanQualMap(qual));
             return collection.countDocuments(query, countOptions);
-        }).map(Long::intValue).firstOrError();
+        }).map(Math::toIntExact).firstOrError();
     }
 
     /**
@@ -353,7 +413,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         return sessionObs.flatMapPublisher(cmdFunction::apply);
     }
     
-    <T> Flowable<T> collectionFromStorageName(String storageName, Function<MongoCollection<Document>, Publisher<T>> cmdFunction) {
+    <T> Flowable<T>
+    collectionFromStorageName(String storageName, Function<MongoCollection<Document>, Publisher<T>> cmdFunction) {
         String[] parts = storageName.split("\\.");
         String databaseName = parts.length < 2 ? config.obtainDefaultDatabase(): parts[0];
         String collectionName = parts.length < 2 ? parts[0]: parts[1];
@@ -361,12 +422,30 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
     
     @Override
-    public Maybe<Map<String, Object>> selectOne(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties, Map<String, Object> qual, Map<String, Object> options) {
-        return null;
+    public Maybe<Map<String, Object>>
+    selectOne(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties,
+              Map<String, Object> qual, Map<String, Object> options) {
+        return select(storageName, storageManagerReference, properties, qual, options)
+            .singleElement()
+            .onErrorResumeNext(t -> {
+                if (t instanceof IllegalArgumentException) {
+                    return Maybe.error(new Exception(
+                        MessageFormat.format(
+                            "More than one instance of type: {0} was found.",
+                            Lists.newArrayList(storageName))));
+                }
+                return Maybe.error(t);
+            });
     }
 
     @Override
-    public Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual) {
-        return null;
+    public Single<Integer>
+    delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual) {
+        //noinspection unchecked
+        return collectionFromStorageName(storageName, dbCol ->
+            dbCol.deleteMany(new Document((Map<String, Object>)cleanQualMap(qual)))
+        ).singleOrError().map(dr ->
+            Math.toIntExact(dr.getDeletedCount())
+        );
     }
 }
