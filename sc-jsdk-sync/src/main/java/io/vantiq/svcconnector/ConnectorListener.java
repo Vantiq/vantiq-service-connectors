@@ -170,10 +170,20 @@ public class ConnectorListener {
                         result = new OpResult<>(new Exception("unrecognized storage manager service procedure call: " +
                             msg.procName));
                     } else {
-                        //noinspection unchecked
                         result = storageManager.initializeTypeDefinition(
                             (Map<String, Object>) msg.params.get("proposedType"),
                             (Map<String, Object>) msg.params.get("existingType")
+                        );
+                    }
+                    break;
+                case "typeDefinitionDeleted":
+                    if (msg.params == null || !(msg.params.get("type") instanceof Map)) {
+                        result = new OpResult<>(new Exception("invalid parameters for storage manager service procedure call: " +
+                                msg.procName));
+                    } else {
+                        result = storageManager.typeDefinitionDeleted(
+                                (Map<String, Object>) msg.params.get("type"),
+                                (Map<String, Object>) msg.params.get("options")
                         );
                     }
                     break;

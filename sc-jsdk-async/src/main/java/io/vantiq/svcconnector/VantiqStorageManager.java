@@ -29,7 +29,9 @@ public interface VantiqStorageManager {
 
     Single<Map<String, Object>> initializeTypeDefinition(Map<String, Object> proposedType,
                                                            Map<String, Object> existingType);
-    
+
+    Completable typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options);
+
     Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference,
                                          Map<String, Object> values);
     

@@ -69,7 +69,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     public Single<Map<String, Object>>
     initializeTypeDefinition(Map<String, Object> proposedType, Map<String, Object> existingType) {
         boolean capped = false;
-        int cappedSize = (Integer)proposedType.get("maxStorage");
+        int cappedSize = proposedType.containsKey("maxStorage") ? (Integer)proposedType.get("maxStorage") : 0;
         int maxDocs = 0;
         if (cappedSize > 0) {
             if (proposedType.containsKey("maxObjects")) {
@@ -83,24 +83,32 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                     .sizeInBytes(cappedSize)
                     .maxDocuments(maxDocs);
             return usingSession(config.obtainDefaultDatabase(), db ->
-                    db.createCollection((String) proposedType.get("name"), createOptions))
-                .doOnComplete(() -> {
-                    // track the database for collection in the storage name of the proposed type
+                    db.createCollection((String) proposedType.get("name"), createOptions)).ignoreElements().andThen(
+                proposedType.containsKey("indexes") ?
+                    this.usingSession(config.obtainDefaultDatabase(), db -> {
+                        MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
+                        //noinspection unchecked
+                        return Flowable.fromIterable((List<Map<String, Object>>) proposedType.get("indexes")).flatMap(index ->
+                            createIndex(collection, index)
+                        );
+                    }).ignoreElements() : Completable.complete()
+            ).doOnComplete(() -> {
+                // track the database for collection in the storage name of the proposed type
+                proposedType.put("storageName", config.obtainDefaultDatabase() + "." + proposedType.get("name"));
+                
+                // set up the _id property in the proposed type
+                //noinspection unchecked
+                Map<String, Object> properties = (Map<String, Object>) proposedType.get("properties");
+                properties.put("_id", createIdProperty());
+            }).onErrorResumeNext(t -> {
+                // if the collection already exists, we're good
+                if (t.getMessage().contains("already exists")) {
                     proposedType.put("storageName", config.obtainDefaultDatabase() + "." + proposedType.get("name"));
-                    
-                    // set up the _id property in the proposed type
-                    //noinspection unchecked
-                    Map<String, Object> properties = (Map<String, Object>) proposedType.get("properties");
-                    properties.put("_id", createIdProperty());
-                }).onErrorResumeNext(t -> {
-                    // if the collection already exists, we're good
-                    if (t.getMessage().contains("already exists")) {
-                        proposedType.put("storageName", config.obtainDefaultDatabase() + "." + proposedType.get("name"));
-                        return Flowable.empty();
-                    } else {
-                        return Flowable.error(t);
-                    }
-                }).ignoreElements().andThen(Single.just(proposedType));
+                    return Completable.complete();
+                } else {
+                    return Completable.error(t);
+                }
+            }).andThen(Single.just(proposedType));
         } else {
             // check if the definition of indexes has changed
             List<Map<String, Object>> delete = new ArrayList<>();
@@ -110,34 +118,40 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
                 return Flowable.concat(
                     // delete indexes that are no longer in the proposed type
-                    Flowable.fromIterable(delete).flatMap(index ->
-                        collection.dropIndex(computeIndexKeySet(index))
-                    ),
+                    Flowable.fromIterable(delete).flatMap(index -> collection.dropIndex(computeIndexKeySet(index))),
                     // add indexes that are in the proposed type but not in the existing type
-                    Flowable.fromIterable(add).flatMap(addIndex -> {
-                        //noinspection unchecked
-                        Map<String,Object> options = (Map<String,Object>)addIndex.get("options");
-                        if (options == null) {
-                            options = Collections.emptyMap();
-                        }
-                        boolean unique = options.containsKey("unique") && (boolean)options.get("unique");
-                        // build in the background when the index is not unique and index options do not
-                        // explicitly specify background = false (i.e. not specified or set to true)
-                        boolean background = !unique && (options.containsKey("background")&&
-                                (boolean) options.get("background"));
-                        IndexOptions idxOptions = new IndexOptions()
-                                .background(background)
-                                .unique(unique)
-                                .name((String)options.get("name"));
-                        if (options.containsKey("expireAfterSeconds")) {
-                            idxOptions.expireAfter((Long)options.get("expireAfterSeconds"), TimeUnit.SECONDS);
-                        }
-                        return collection.createIndex(computeIndexKeySet(addIndex), idxOptions);
-                }));
+                    Flowable.fromIterable(add).flatMap(addIndex -> createIndex(collection, addIndex))
+                );
             }).ignoreElements().andThen(Single.just(proposedType));
         }
     }
 
+    @Override
+    public Completable typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options) {
+        return collectionFromStorageName((String)type.get("storageName"), MongoCollection::drop).ignoreElements();
+    }
+
+    Publisher<String> createIndex(MongoCollection<Document> collection, Map<String, Object> index) {
+        //noinspection unchecked
+        Map<String,Object> options = (Map<String,Object>)index.get("options");
+        if (options == null) {
+            options = Collections.emptyMap();
+        }
+        boolean unique = options.containsKey("unique") && (boolean)options.get("unique");
+        // build in the background when the index is not unique and index options do not
+        // explicitly specify background = false (i.e. not specified or set to true)
+        boolean background = !unique && (options.containsKey("background")&&
+                (boolean) options.get("background"));
+        IndexOptions idxOptions = new IndexOptions()
+                .background(background)
+                .unique(unique)
+                .name((String)options.get("name"));
+        if (options.containsKey("expireAfterSeconds")) {
+            idxOptions.expireAfter((Long)options.get("expireAfterSeconds"), TimeUnit.SECONDS);
+        }
+        return collection.createIndex(computeIndexKeySet(index), idxOptions);
+    }
+    
     private static Map<String, Object> createIdProperty() {
         Map<String, Object> idProperty = new HashMap<>();
         idProperty.put("type", "String");
@@ -229,6 +243,9 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     @Override
     public Flowable<Map<String, Object>>
     insertMany(String storageName, Map<String, Object> storageManagerReference,List<Map<String, Object>> values) {
+        if (values.isEmpty()) {
+            return Flowable.empty();
+        }
         List<Document> docs = new ArrayList<>();
         values.forEach(value -> {
             docs.add(new Document(value).append("_id", new ObjectId()));

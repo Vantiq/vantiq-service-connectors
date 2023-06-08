@@ -48,6 +48,13 @@ public class MemoryStorageManagerImpl implements VantiqStorageManager {
     }
 
     @Override
+    public OpResult<Void> typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options) {
+        typeMap.remove((String)type.get("name"));
+        storage.remove((String)type.get("name"));
+        return new OpResult<>(null);
+    }
+
+    @Override
     public OpResult<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values) {
         System.out.println("insert() called with storageName: " + storageName + " & values: " + values);
         storage.get(storageName).put((String) values.get("name"), values);

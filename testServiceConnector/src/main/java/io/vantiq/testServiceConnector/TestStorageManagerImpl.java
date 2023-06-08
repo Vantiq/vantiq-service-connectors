@@ -30,6 +30,11 @@ public class TestStorageManagerImpl implements VantiqStorageManager {
     }
 
     @Override
+    public OpResult<Void> typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options) {
+        return new OpResult<>(null);
+    }
+
+    @Override
     public OpResult<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values) {
         return new OpResult<>(values);
     }

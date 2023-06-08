@@ -24,6 +24,8 @@ public interface VantiqStorageManager {
 
     OpResult<Map<String, Object>> initializeTypeDefinition(Map<String, Object> proposedType,
                                                            Map<String, Object> existingType);
+
+    OpResult<Void> typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options);
     
     OpResult<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference,
                                          Map<String, Object> values);

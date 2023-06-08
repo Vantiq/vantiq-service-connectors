@@ -109,7 +109,7 @@ public class ConnectorListener {
             },
             error -> {
                 response.result = null;
-                response.errorMsg = error.getMessage();
+                response.errorMsg = error.getMessage() == null ? error.toString() : error.getMessage();
                 writeResponse(response);
             },
             () -> {
@@ -185,8 +185,7 @@ public class ConnectorListener {
                     result = storageManager.getTypeRestrictions().toFlowable();
                     break;
                 case "initializeTypeDefinition":
-                    if (msg.params == null || !(msg.params.get("proposedType") instanceof Map)
-                        || !(msg.params.get("proposedType") instanceof Map)) {
+                    if (msg.params == null || !(msg.params.get("proposedType") instanceof Map)) {
                         result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
                             msg.procName));
                     } else {
@@ -194,6 +193,18 @@ public class ConnectorListener {
                         result = storageManager.initializeTypeDefinition(
                             (Map<String, Object>) msg.params.get("proposedType"),
                             (Map<String, Object>) msg.params.get("existingType")
+                        ).toFlowable();
+                    }
+                    break;
+                case "typeDefinitionDeleted":
+                    if (msg.params == null || !(msg.params.get("type") instanceof Map)) {
+                        result = Flowable.error(new Exception("invalid parameters for storage manager service procedure call: " +
+                                msg.procName));
+                    } else {
+                        //noinspection unchecked
+                        result = storageManager.typeDefinitionDeleted(
+                                (Map<String, Object>) msg.params.get("type"),
+                                (Map<String, Object>) msg.params.get("options")
                         ).toFlowable();
                     }
                     break;
