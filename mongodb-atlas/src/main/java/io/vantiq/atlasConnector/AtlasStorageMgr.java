@@ -93,8 +93,10 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                         );
                     }).ignoreElements() : Completable.complete()
             ).doOnComplete(() -> {
-                // track the database for collection in the storage name of the proposed type
-                proposedType.put("storageName", config.obtainDefaultDatabase() + "." + proposedType.get("name"));
+                // track the database for collection in the storage name of the proposed type. use : as a separator
+                // as it is not a valid character in a collection name or vantiq type name
+                proposedType.put("storageName", buildStorageName(config.obtainDefaultDatabase(),
+                        (String)proposedType.get("name")));
                 
                 // set up the _id property in the proposed type
                 //noinspection unchecked
@@ -103,7 +105,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             }).onErrorResumeNext(t -> {
                 // if the collection already exists, we're good
                 if (t.getMessage().contains("already exists")) {
-                    proposedType.put("storageName", config.obtainDefaultDatabase() + "." + proposedType.get("name"));
+                    proposedType.put("storageName", buildStorageName(config.obtainDefaultDatabase(),
+                            (String)proposedType.get("name")));
                     return Completable.complete();
                 } else {
                     return Completable.error(t);
@@ -116,7 +119,14 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             analyzeIndexes(existingType, proposedType, delete, add);
             return usingSession(config.obtainDefaultDatabase(), db -> {
                 MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
+                Publisher<Document> sizeChange = Flowable.empty();
+                if (proposedType.containsKey("maxStorage") && proposedType.get("maxStorage") != existingType.get("maxStorage")) {
+                    // change the size of the collection, currently hit permission problems, but it should work
+                    sizeChange = db.runCommand(new Document("collMod", proposedType.get("name"))
+                            .append("cappedSize", proposedType.get("maxStorage")));
+                }
                 return Flowable.concat(
+                    sizeChange,
                     // delete indexes that are no longer in the proposed type
                     Flowable.fromIterable(delete).flatMap(index -> collection.dropIndex(computeIndexKeySet(index))),
                     // add indexes that are in the proposed type but not in the existing type
@@ -195,20 +205,24 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     private void analyzeIndexes(Map<String, Object> existingType, Map<String, Object> proposedType,
                                 List<Map<String,Object>> deleteList, List<Map<String, Object>> addList) {
         // if the index is not in the proposed type, add it to the delete list
-        ((List<Map<String, Object>>)existingType.get("indexes")).stream().filter( index -> {
-            // check if the index is in the proposed type
-            return ((List<Map<String, Object>>)proposedType.get("indexes")).stream().noneMatch( proposedIndex -> 
-                proposedIndex.get("keys").equals(index.get("keys"))
-            );
-        }).forEach(deleteList::add);
+        if (existingType.get("indexes") != null) {
+            ((List<Map<String, Object>>) existingType.get("indexes")).stream().filter(index -> {
+                // check if the index is in the proposed type
+                return ((List<Map<String, Object>>) proposedType.get("indexes")).stream().noneMatch(proposedIndex ->
+                        proposedIndex.get("keys").equals(index.get("keys"))
+                );
+            }).forEach(deleteList::add);
+        }
         
         // if the index is not in the existing type, add it to the add list
-        ((List<Map<String, Object>>)proposedType.get("indexes")).stream().filter( index -> {
-            // check if the index is in the existing type
-            return ((List<Map<String, Object>>)existingType.get("indexes")).stream().noneMatch( existingIndex ->
-                existingIndex.get("keys").equals(index.get("keys"))
-            );
-        }).forEach(addList::add);
+        if (proposedType.get("indexes") != null) {
+            ((List<Map<String, Object>>) proposedType.get("indexes")).stream().filter(index -> {
+                // check if the index is in the existing type
+                return ((List<Map<String, Object>>) existingType.get("indexes")).stream().noneMatch(existingIndex ->
+                        existingIndex.get("keys").equals(index.get("keys"))
+                );
+            }).forEach(addList::add);
+        }
     }
     
     @Override
@@ -260,7 +274,10 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
     @SuppressWarnings("unchecked")
     @Override
-    public Maybe<Map<String, Object>> update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values, Map<String, Object> qual) {
+    public Maybe<Map<String, Object>>
+    update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values,
+           Map<String, Object> qual) {
+        
         Map<String, Object> unsetVals = values.containsKey("$unset") ?
                 (Map<String, Object>)values.remove("$unset") : new HashMap<>();
         Map<String, Object> setVals = values.containsKey("$set") ?
@@ -430,9 +447,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         return sessionObs.flatMapPublisher(cmdFunction::apply);
     }
     
+    String buildStorageName(String databaseName, String collectionName) {
+        return databaseName + ":" + collectionName;
+    }
+    
     <T> Flowable<T>
     collectionFromStorageName(String storageName, Function<MongoCollection<Document>, Publisher<T>> cmdFunction) {
-        String[] parts = storageName.split("\\.");
+        String[] parts = storageName.split(":");
         String databaseName = parts.length < 2 ? config.obtainDefaultDatabase(): parts[0];
         String collectionName = parts.length < 2 ? parts[0]: parts[1];
         return usingSession(databaseName, db -> cmdFunction.apply(db.getCollection(collectionName)));
