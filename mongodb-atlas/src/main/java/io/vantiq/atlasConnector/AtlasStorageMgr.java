@@ -61,8 +61,11 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
     @Override
     public Single<Map<String, Object>> getTypeRestrictions() {
-        // we support everything the VANTIQ type system supports
-        return Single.just(new HashMap<>());
+        // we support almost everything the VANTIQ type system supports. we restrict expiresAfter since we don't keep
+        // a createdAt property in the collection by default. Could revisit 
+        Map<String, Object> restrictions = new HashMap<>();
+        restrictions.put("restrictedTypeProperties", Lists.newArrayList("expiresAfter"));
+        return Single.just(restrictions);
     }
 
     @Override

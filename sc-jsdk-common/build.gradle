@@ -1,0 +1,56 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+  mavenCentral()
+}
+
+ext {
+}
+
+apply plugin: 'application'
+apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: "com.chrisgahlert.gradle-dcompose-plugin"
+
+ext {
+    junitJupiterVersion = "5.9.1"
+}
+
+dependencies {
+  implementation("com.google.guava:guava:31.1-jre")  {
+      constraints {
+          implementation('com.google.errorprone:error_prone_annotations:2.18.0') {
+              because 'to avoid duplicate versions'
+          }
+      }
+  }
+  implementation("org.apache.commons:commons-lang3:3.12.0")
+  implementation("org.projectlombok:lombok:1.18.26")
+  implementation("org.slf4j:slf4j-api:1.7.36")
+  implementation("ch.qos.logback:logback-classic:1.2.10")
+
+  testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
+}
+
+java {
+  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_11
+}
+
+//tasks.withType<ShadowJar> {
+//  archiveClassifier.set("fat")
+//  manifest {
+//    attributes(mapOf("Main-Verticle" to mainVerticleName))
+//  }
+//  mergeServiceFiles()
+//}
+
+shadowJar {
+    archiveBaseName.set('service-connector')
+    manifest {
+        attributes 'Main-Verticle': 'io.vantiq.svcconnector.MainVerticle'
+        attributes 'Main-Command': 'run'
+    }
+    zip64 true
+}
