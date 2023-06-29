@@ -54,7 +54,7 @@ public class InstanceConfigUtils {
             try {
                 secrets.load(new FileInputStream(secretsFile));
             } catch (IOException ignored) {
-                // give up...
+                log.error("Error loading secrets... nothing found in resources or in the secrets directory for " + fileName);
             }
         }
         return secrets;

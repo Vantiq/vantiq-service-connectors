@@ -2,6 +2,7 @@ package io.vantiq.atlasConnector;
 
 import static com.mongodb.client.model.Projections.exclude;
 import static com.mongodb.client.model.Projections.include;
+import static io.vantiq.svcconnector.SvcConnectorServer.getVertx;
 
 import com.google.common.collect.Lists;
 import com.mongodb.client.model.CountOptions;
@@ -16,9 +17,13 @@ import com.mongodb.reactivestreams.client.MongoDatabase;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Maybe;
+import io.reactivex.rxjava3.core.Scheduler;
 import io.reactivex.rxjava3.core.Single;
+import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vantiq.svcconnector.InstanceConfigUtils;
 import io.vantiq.svcconnector.VantiqStorageManager;
+import io.vertx.rxjava3.ContextScheduler;
+import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.reactivestreams.Publisher;
@@ -33,8 +38,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+@Slf4j
 public class AtlasStorageMgr implements VantiqStorageManager {
     static final long QUERY_TIMEOUT = 50L;
     static final TimeUnit QUERY_TIMEOUT_TIMEUNIT = TimeUnit.SECONDS;
@@ -42,18 +49,24 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     Connection connection;
     InstanceConfigUtils config = new InstanceConfigUtils();
     ConcurrentMap<String, Single<MongoDatabase>> sessions = new ConcurrentHashMap<>();
+    volatile Scheduler rxScheduler = null;
     
     @Override
     public Completable initialize() {
+        rxScheduler = new ContextScheduler(getVertx().getOrCreateContext(), false);
         config.loadServerConfig();
         connection = new Connection();
         // get a connection and run a ping command
         return connection.connect(config).flatMapPublisher(client -> {
             MongoDatabase adminDb = client.getDatabase("admin");
-            return Flowable.fromPublisher(adminDb.runCommand(new Document("ping", 1))).map(doc -> {
+            AtomicLong start = new AtomicLong();
+            return Flowable.fromPublisher(adminDb.runCommand(new Document("ping", 1)))
+                    .doOnSubscribe(s -> start.set(System.currentTimeMillis()))
+                    .map(doc -> {
                 if (doc.get("ok", 0) != 1) {
                     throw new Exception("Failed to ping MongoDB Atlas");
                 }
+                log.debug("Connected to MongoDB Atlas, ping time: {}ms", System.currentTimeMillis() - start.get());
                 return doc;
             });
         }).ignoreElements();
@@ -447,7 +460,14 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             Single<MongoClient> clientObs = connection.connect(config);
             return clientObs.map(client -> client.getDatabase(databaseName)).cache();
         });
-        return sessionObs.flatMapPublisher(cmdFunction::apply);
+        AtomicLong start = new AtomicLong();
+        return sessionObs.flatMapPublisher(cmdFunction::apply).doOnSubscribe(s -> {
+            start.set(System.nanoTime());
+        }).observeOn(rxScheduler == null ? Schedulers.trampoline() : rxScheduler).doOnComplete(() -> {
+            long end = System.nanoTime();
+            long duration = end - start.get();
+            log.debug("Atlas round trip time: {} ms", duration / 1000000);
+        });
     }
     
     String buildStorageName(String databaseName, String collectionName) {

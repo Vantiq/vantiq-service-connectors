@@ -7,13 +7,6 @@ repositories {
 }
 
 ext {
-}
-
-apply plugin: 'application'
-apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: "com.chrisgahlert.gradle-dcompose-plugin"
-
-ext {
     junitJupiterVersion = "5.9.1"
 }
 
@@ -36,21 +29,4 @@ dependencies {
 java {
   sourceCompatibility = JavaVersion.VERSION_11
   targetCompatibility = JavaVersion.VERSION_11
-}
-
-//tasks.withType<ShadowJar> {
-//  archiveClassifier.set("fat")
-//  manifest {
-//    attributes(mapOf("Main-Verticle" to mainVerticleName))
-//  }
-//  mergeServiceFiles()
-//}
-
-shadowJar {
-    archiveBaseName.set('service-connector')
-    manifest {
-        attributes 'Main-Verticle': 'io.vantiq.svcconnector.MainVerticle'
-        attributes 'Main-Command': 'run'
-    }
-    zip64 true
 }

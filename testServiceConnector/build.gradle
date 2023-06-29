@@ -60,7 +60,6 @@ java {
 //}
 
 shadowJar {
-    archiveBaseName.set('atlas-connector')
     manifest {
         attributes 'Main-Verticle': 'io.vantiq.svcconnector.MainVerticle'
         attributes 'Main-Command': 'run'

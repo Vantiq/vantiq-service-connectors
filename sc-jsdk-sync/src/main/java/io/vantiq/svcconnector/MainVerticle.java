@@ -63,7 +63,7 @@ public class MainVerticle extends AbstractVerticle implements Sessionizer {
     }
 
     public void handleWebsocketRequest(SockJSSocket socket) {
-        System.out.println("new websocket connection");
+        log.debug("new websocket connection");
         ConnectorListener listener = new ConnectorListener(socket, storageManager, this);
     }
 }

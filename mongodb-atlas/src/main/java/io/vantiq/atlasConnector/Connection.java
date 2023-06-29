@@ -10,6 +10,7 @@ import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.disposables.Disposable;
 import io.vantiq.svcconnector.InstanceConfigUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
@@ -21,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
  * MongoDB x509 certificate based authentication.
  */
 
+@Slf4j
 public class Connection {
     volatile Single<MongoClient> clientObservable;
     
@@ -56,9 +58,11 @@ public class Connection {
     
     public Single<MongoClient> connect(InstanceConfigUtils config) {
         if (clientObservable == null) {
+            Properties properties = config.loadServerConfig();
             Properties secrets = config.loadServerSecrets();
             String connectionString = "mongodb+srv://" + secrets.getProperty("secret") 
-                    + "@cluster0.h7jzx3i.mongodb.net/?retryWrites=true&w=majority";
+                    + "@" + properties.getProperty("clusterHostname", "cluster0.h7jzx3i.mongodb.net") 
+                    + "/?retryWrites=true&w=1";
 
             ServerApi serverApi = ServerApi.builder()
                     .version(ServerApiVersion.V1)
@@ -71,7 +75,10 @@ public class Connection {
 
             synchronized (this) {
                 if (clientObservable == null) {
-                    clientObservable = Single.fromSupplier(() -> MongoClients.create(settings)).cache();
+                    clientObservable = Single.fromSupplier(() -> {
+                        log.debug("Connecting to MongoDB Atlas");
+                        return MongoClients.create(settings);
+                    }).cache();
                 }
             }
             // Create a new client and connect to the server

@@ -20,7 +20,7 @@
   <logger name="io.vertx.core.eventbus.impl.HandlerRegistration" level="OFF" />
   <logger name="io.vertx.core.impl.ContextImpl" level="OFF" />
 
-  <logger name="io.vantiq" level="DEBUG" />
+  <logger name="io.vantiq" level="INFO" />
 
   <root level="INFO">
     <appender-ref ref="STDOUT"/>

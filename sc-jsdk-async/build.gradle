@@ -2,7 +2,7 @@ plugins {
     id 'java'
 }
 
-version = "1.0.0-SNAPSHOT"
+version = 'unspecified'
 
 repositories {
     mavenCentral()
@@ -13,38 +13,9 @@ ext {
     jacksonVersion = "2.14.2"
     rxJavaVersion = "3.1.6"
     junitJupiterVersion = "5.9.1"
-
-    mainVerticleName = "io.vantiq.svcconnector.MainVerticle"
-    launcherClassName = "io.vertx.core.Launcher"
-
-    watchForChange = "src/**/*"
 }
-
-apply plugin: 'application'
-apply plugin: 'com.github.johnrengelman.shadow'
-apply plugin: "com.chrisgahlert.gradle-dcompose-plugin"
 
 // Set up registry credentials
-dcompose {
-    // The credentials here should be stored in gradle.properties.
-    dockerClientConfig = {
-        withRegistryUsername dockerHubUser
-        withRegistryPassword dockerHubPassword
-    }
-
-    registry('quay.io') {
-        withUsername quayUser
-        withPassword quayPassword
-    }
-}
-
-applicationName = 'service-connector'
-mainClassName = 'io.vantiq.svcconnector.MainVerticle'
-
-application {
-    mainClass.set(launcherClassName)
-}
-
 dependencies {
     implementation("io.reactivex.rxjava3:rxjava:3.1.6")
     implementation("io.vertx:vertx-rx-java3:4.4.1")
@@ -72,21 +43,4 @@ dependencies {
 java {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
-}
-
-//tasks.withType<ShadowJar> {
-//  archiveClassifier.set("fat")
-//  manifest {
-//    attributes(mapOf("Main-Verticle" to mainVerticleName))
-//  }
-//  mergeServiceFiles()
-//}
-
-shadowJar {
-    archiveBaseName.set('service-connector')
-    manifest {
-        attributes 'Main-Verticle': 'io.vantiq.svcconnector.MainVerticle'
-        attributes 'Main-Command': 'run'
-    }
-    zip64 true
 }
