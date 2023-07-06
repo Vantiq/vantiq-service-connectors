@@ -1,0 +1,2 @@
+rootProject.name = 'vantiq-service-connectors'
+include 'pythonsdk'

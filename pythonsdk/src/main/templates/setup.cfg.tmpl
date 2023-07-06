@@ -1,0 +1,23 @@
+[metadata]
+name = vantiqservicesdk
+version = ${vantiqServiceSdkVersion}
+description= SDK for building Vantiq service connectors in Python
+long_description = file: README.md, LICENSE
+long_description_content_type = text/markdown
+url = https://github.com/Vantiq/vantiq-service-connectors
+author = Vantiq, Inc
+author_email = sfitts@vantiq.com
+license= MIT
+classifiers =
+    License :: OSI Approved :: MIT License
+    Programming Language :: Python :: 3.9
+    Programming Language :: Python :: 3.10
+    Programming Language :: Python :: 3.11
+
+[options]
+package_dir = =src/main/python
+py_modules = vantiqservicesdk
+python_requires = >=3.9
+install_requires=
+    fastapi>=0.97.0
+    uvicorn[standard]>=0.22.0

@@ -1,0 +1,13 @@
+*.iml
+*.iws
+.gradle/
+.idea/
+bin/
+build/
+out/
+
+# Python infrastructure
+setup.cfg
+**/__pycache__
+**/*.egg-info/*
+**/.pytest_cache
