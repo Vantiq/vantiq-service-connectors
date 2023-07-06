@@ -35,7 +35,7 @@ python {
     environment = [:]
 
     // minimal required python version (m.m.m)
-    minPythonVersion = '3.9'
+    minPythonVersion = '3.8'
     // minimal required pip version (m.m.m)
     minPipVersion = '9'
 
@@ -64,27 +64,9 @@ python {
     if (project.hasProperty('virtualenvPath')) {
         envPath = virtualenvPath
     } 
-//    envPath
+    
     // copy virtualenv instead of symlink (when created)
     envCopy = false
-
-    pip 'pip:23.1.2'
-
-    // For product runtime
-    pip 'fastapi:0.97.0'
-    pip 'uvicorn[standard]:0.22.0'
-
-    // For testing
-    pip 'pytest:7.3.1'
-    pip 'httpx:0.24.1'
-//    pip 'pytest-asyncio:0.21.0'
-//    pip 'pytest-timeout:2.1.0'
-//    pip 'pytest-html:3.2.0'   // To generate html reports from pytest cases
-
-    // For build generation
-    pip 'build:0.10.0'  // For building the distribution
-    // For publication
-    pip 'twine:4.0.2'
 }
 
 task pytest(type: PythonTask) {

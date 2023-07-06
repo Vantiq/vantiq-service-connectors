@@ -7,8 +7,23 @@ of a Vantiq service to be implemented outside the Vantiq platform.  The typical 
 
 TBD...
 
-## Developer Setup
+## Building a Service Connector
 
-In general, building, test execution, and publishing are all integrated with standard Gradle tasks defined by the parent project.  We use a Gradle Python plug-in to help with this integration.  The plug-in will construct a Python "virtual environment" into which all the necessary dependencies will be deployed.  This can be triggered directly using the `pipInstall` task.  The virtualenv is located in `./gradle/python`.
+Running this code required Python 3.8 or later.
 
-For anyone interested in working with the code in an IDE, we have found that the best option is to use PyCharm (community will work) to load this directory as a project (rather than via the parent project).  Then configure the python interpreter to point to the virtualenv created above and from there everything should work as expected.  Note that using the standard IDE (at least the community edition) does not fully work as it seems not to recognize the paths set up for pytest.
+To use the SDK, install it into your Python environment.  Using `pip`, 
+
+```commandline
+pip install vantiqservicesdk
+```
+
+Other Python environment tools may use different commands.
+
+Once it is installed, you can import it.
+
+```python
+
+from vantiqservicesdk import BaseVantiqServiceConnector
+```
+
+More details TBD...

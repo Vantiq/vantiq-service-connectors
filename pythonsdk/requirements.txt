@@ -1,0 +1,15 @@
+# Make sure we have a reasonably current version of pip installed
+pip>=23.1.2
+
+# These are the primary requirements
+fastapi==0.97.0
+uvicorn[standard]==0.22.0
+
+# For testing
+pytest==7.3.1
+httpx==0.24.1
+pytest-html==3.2.0
+
+# For build/deploy
+build==0.10.0
+twine==4.0.2
