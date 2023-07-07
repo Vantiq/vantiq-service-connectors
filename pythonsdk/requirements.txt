@@ -2,7 +2,7 @@
 pip>=23.1.2
 
 # These are the primary requirements
-fastapi==0.97.0
+fastapi==0.99.1
 uvicorn[standard]==0.22.0
 
 # For testing
