@@ -13,13 +13,22 @@ ext {
         pypi_repo = 'testpypi'
     }
     if (!project.rootProject.hasProperty('vantiqServiceSdkVersion')) {
-        vantiqServiceSdkVersion = '0.0.1'
+        vantiqServiceSdkVersion = '0.0.2'
     }
     
     // See if we are using virtualenvwrapper and if so put the virtualenv in the WORKON_HOME
     if (System.getenv('WORKON_HOME')) {
         virtualenvPath = System.getenv('WORKON_HOME') + "/vantiqservicesdk"
     }
+
+    String depList = ''
+    project.file('requirements-sdk.in').eachLine { dep ->
+        if (depList.length() > 0) {
+            depList += ",\n"
+        }
+        depList += '    "' + dep + '"'
+    }
+    vantiqServiceSdkDeps = depList
 }
 
 python {
@@ -51,6 +60,7 @@ python {
     trustedHosts = []
 
     // pip modules installation scope (project local, os user dir, global)
+    //noinspection GroovyAssignabilityCheck
     scope = VIRTUALENV_OR_USER
     // automatically install virtualenv module (if pip modules declared and scope allows)
     installVirtualenv = true
@@ -69,26 +79,30 @@ python {
     envCopy = false
 }
 
-task pytest(type: PythonTask) {
+tasks.register('generateRequirements', PythonTask) {
+    inputs.files('requirements-build.in', 'requirements-sdk.in')
+    outputs.file('requirements.txt')
+    module = 'piptools'
+    command = 'compile requirements-build.in requirements-sdk.in --unsafe-package py -o requirements.txt'
+}
+
+tasks.register('pytest', PythonTask) {
     outputs.upToDateWhen { false }
     module = 'pytest'
 }
 
-task generateSetupCfg(type: Copy) {
+tasks.register('generateProjectCfg', Copy) {
+    outputs.upToDateWhen { false }
     into project.projectDir
     from 'src/main/templates'
-    include '**/setup.cfg.tmpl'
-    expand(
-            vantiqServiceSdkVersion: vantiqServiceSdkVersion)
+    include '**/pyproject.toml.tmpl'
+    expand(vantiqServiceSdkVersion: vantiqServiceSdkVersion, vantiqServiceSdkDeps: vantiqServiceSdkDeps)
     rename ~/(.*)\.tmpl/, '$1'
 }
 
-// Always regenerate these files since we can't tell when the versions on which they depend have changed.
-generateSetupCfg.outputs.upToDateWhen { false }
-
-task build_distribution(type: PythonTask) {
-    String osName = OperatingSystem.current().getName();
-    String osVersion = OperatingSystem.current().getVersion();
+tasks.register('build_distribution', PythonTask) {
+    String osName = OperatingSystem.current().getName()
+    String osVersion = OperatingSystem.current().getVersion()
     println "*** $osName $osVersion was detected."
 
     if (!OperatingSystem.current().isLinux()) {
@@ -100,15 +114,15 @@ task build_distribution(type: PythonTask) {
     }
 }
 
-build_distribution.dependsOn generateSetupCfg
+build_distribution.dependsOn generateProjectCfg
 
-task publish(type: PythonTask) {
+tasks.register('publish', PythonTask) {
     command = "upload --verbose -r ${pypi_repo} dist/*"
     module = 'twine'
 }
 
 publish.mustRunAfter build_distribution
-publish.dependsOn generateSetupCfg
+publish.dependsOn generateProjectCfg
 publish.dependsOn assemble
 
 // Note: pytest must run AFTER the 'test' task.  That task prepares (i.e. deletes) the directory
@@ -119,18 +133,18 @@ test.finalizedBy pytest
 assemble.finalizedBy build_distribution
 
 // delete all the generated files.
-task pyclean(type: Delete) {
+tasks.register('pyclean', Delete) {
     delete "${project.projectDir}/dist"
-    delete "${project.projectDir}/setup.cfg"
+    delete "${project.projectDir}/pyproject.toml"
 }
 
 clean.dependsOn pyclean
 
-// make every other task depend on the generate* tasks.  This way, they run first and the
+// Make every other task run after the generateProjectCfg task.  This way, they run first and the
 // gradle dependency analyzer remains happy.
 // matching() and all() are "live" so any tasks declared after this line will also depend on generate*
 tasks.matching { !it.name.startsWith('generate')
         && it.name != 'pyclean'
-        && it.name != 'clean' }.all { Task task ->
-    task.mustRunAfter generateSetupCfg
+        && it.name != 'clean' }.configureEach { task ->
+    task.mustRunAfter generateProjectCfg
 }
