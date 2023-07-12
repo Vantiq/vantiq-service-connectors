@@ -1,0 +1,9 @@
+# For testing
+pytest
+httpx
+pytest-html
+
+# For build
+pip-tools
+build
+twine
