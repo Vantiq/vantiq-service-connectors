@@ -22,7 +22,7 @@ By convention, SDKs will end with `sdk`.
 Each directory will contain a README (or README.md) file that describes the contents, and either contains or directs the reader toward appropriate documentation.
 Each directory should contain a LICENSE (or LICENSE.md) file that outlines the license for the code as well as any packages used.
 
-Bugs, issues, enhancement requests should be reported using the GitHub *issues* tab.
+Bugs, issues, or enhancement requests should be reported using the GitHub *issues* tab.
 In any such report or request,
 please make clear the service connector or SDK to which the issue applies.
 Including the top level directory in the issue's `Title` is the most expeditious way of doing so.
@@ -46,12 +46,16 @@ for details.
 
 ## Overall Architecture
 
-The VANTIQ system maintains storage managers for each of its type resources. If not otherwise specified, the storage manager
-defaults to the storage mechanism run internal to the VANTIQ cluster (MongoDB as of this writing).
-All types that leverage native language implementations are defined with an implementing service that references a service connector.
-The data model manager is responsible for the interaction between the VANTIQ system and storage manager implementations. It recognizes
-when the storage manager service refers to a service connector and directs the request over a websocket to the running connector. It
-then processes the responses as appropriate.
+The VANTIQ system maintains storage managers for each of its type resources. The storage manager
+is responsible for the persistence of data associated with the type resource. The storage manager also provides the
+means by which the VANTIQ system can query the associated data. The storage manager for a type is set when the type is
+initially defined. If not explicitly set, the storage manager defaults to the storage mechanism run internally to the
+VANTIQ cluster (MongoDB as of this writing). Pluggable storage managers name an implementing service that provides
+the muscle behind the storage manager API. This implementation can be via VAIL procedures, or by a service
+connector. All types that leverage native language implementations are defined with an implementing service that
+references a service connector. The data model manager is responsible for the interaction between the VANTIQ system
+and storage manager implementations. It recognizes when the storage manager service refers to a service connector and
+directs the request over a websocket to the running connector. It then processes the responses as appropriate.
 
 At present the VANTIQ server initiates all requests for data involving the service connector. This will change as we add support for
 running service connectors external to the cluster and behind firewalls. In that case, the service connector will need to
@@ -63,6 +67,7 @@ These operations are analogs to the
 
   - getTypeRestrictions - let the VANTIQ server know what type system features the storage manager supports
   - initializeTypeDefinition - perform any / all work needed when a new type is created.
+  - typeDefinitionDeleted - perform any / all work needed when a type is deleted.
 
 The rest of the calls correspond to the standard data manipulation operations supported on VANTIQ types:
 
@@ -74,11 +79,11 @@ The rest of the calls correspond to the standard data manipulation operations su
   - selectOne
   - delete
 
-What follows is a general description of how things work.  For details in Java, please see the [Java SDK](sc-jsdk-sync/README.md).
+What follows is a general description of how things work.  For details in Java, please see the [Java SDK](javasdk-sync/README.md).
 
 ## Messages
 
-> Note:  When using the [Java SDK](scjsdk/README.md) you may not need this level of detail. The focus can stay on the
+> Note:  When using the [Java SDK](javasdk-sync/README.md) you may not need this level of detail. The focus can stay on the
 > implementation of the above storage manager API operations.
 
 Messages are received using a *SvcConnSvrMessage*.
@@ -170,33 +175,18 @@ With the required properties in place, the tasks can then be executed as follows
 
 From the root directory of this repo, run the following command (this example builds the JDBC Connector)
 ```
-./gradlew jdbcSource:buildConnectorImage
+./gradlew mongodb-atlas:buildServiceConnectorImage
 ```
-
-Or, you can just run the following task:
-```
-./gradlew jdbcSource:buildImages
-```
-*   **NOTE:** This last option will build all images configured for a given subproject. Currently, each subproject 
-(connector) is only configured to build one image. If the developer modifies any of the `build.gradle` to configure more
-than one image, this command will build them all.
 
 ### Push Image
 
 From the root directory of this repo, run the following command (this example pushes the JDBC Connector image)
 ```
-./gradlew jdbcSource:pushConnectorImage
+./gradlew mongodb-atlas:pushServiceConnectorImage
 ```
-
-Or, you can just run the following task:
-```
-./gradlew jdbcSource:pushImages
-```
-*   **NOTE:** Same note as the one above.
 
 ### Deploying the connector images in the Vantiq IDE
 
 Once you have built and published the docker image for a given connector (as described above), you can then deploy it 
-into a Kubernetes Cluster directly from the Vantiq IDE. This process is described in its entirety 
-[here](https://dev.vantiq.com/docs/system/extlifecycle/index.html), including both the prerequisite Kubernetes Cluster 
-setup, and an example that deploys the JDBC Connector.
+into the Vantiq Cluster directly from the Vantiq IDE. This process is described
+[here](https://dev.vantiq.com/docs/system/storagemanagers/index.html#service-connectors).

@@ -66,8 +66,8 @@ allprojects {
 // Here, at config time, we'll set these properties to empty values.  This allows the dcompose-generated
 // tasks to complete without throwing errors. Any publish operations may fail, but they would fail anyway
 // since no credentials were provided.  If these aren't set, creating the images (which will be saved in the
-// local docker) will fail without a good reason. Setting these values allows the buildImages tasks to
-// complete without incident.
+// local docker) will fail without a good reason. Setting these values allows the build images tasks to
+// complete.
 
 if (!rootProject.hasProperty('dockerRegistryUser')) {
     project.ext.setProperty('dockerRegistryUser', '')
