@@ -1,6 +1,7 @@
 buildscript {
     repositories { mavenCentral() }
     dependencies {
+        classpath 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
         classpath 'com.netflix.nebula:gradle-ospackage-plugin:4.4.0'
         classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.4.15"
         classpath "gradle.plugin.com.github.lkishalmi.gradle:gradle-gatling-plugin:0.4.1"
@@ -9,20 +10,18 @@ buildscript {
 
 plugins {
     id 'io.franzbecker.gradle-lombok' version '5.0.0' apply false
-    id 'pl.allegro.tech.build.axion-release' version '1.6.0'
+    id 'pl.allegro.tech.build.axion-release' version '1.13.14'
+    id "com.jfrog.artifactory" version "4.31.4" apply false
     id 'jacoco'
-    id 'com.chrisgahlert.gradle-dcompose-plugin' version '0.17.1' apply false
-    id 'com.github.johnrengelman.shadow' version "7.1.2"
+    id 'com.chrisgahlert.gradle-dcompose-plugin' version '0.17.2' apply false
 }
 
 wrapper {
-    // Tried to use version 8.+ but there is an issue with that and the IntelliJ IDE. See 
-    // https://stackoverflow.com/questions/75715341/toolchain-from-executable-property-does-not-match-toolchain-from-javalauncher
-    gradleVersion = '7.6.1'
+    gradleVersion = '8.0.1'
     distributionUrl = "https://services.gradle.org/distributions/gradle-$gradleVersion-all.zip"
 }
 
-/*private Map getHostInfo() {
+private Map getHostInfo() {
     def info = [:]
     try {
         info.name = InetAddress.localHost.hostName
@@ -32,7 +31,7 @@ wrapper {
         info.ip = '127.0.0.1'
     }
     return info
-}*/
+}
 
 group 'io.vantiq'
 
@@ -78,8 +77,14 @@ if (!rootProject.hasProperty('dockerRegistryPassword')) {
     logger.warn('The property "dockerRegistryPassword" was not provided. This may affect publish operations.')
 }
 
+def pythonProjects = ['pythonsdk'] as Set<String>
 
 subprojects {
+    // Don't configure the python projects
+    if (pythonProjects.contains(it.name)) {
+        return
+    }
+    println("configuring project ${it.name}")
     apply plugin: 'groovy'
     apply plugin: 'idea'
     apply plugin: 'eclipse'
@@ -94,7 +99,6 @@ subprojects {
     // Using gradle-dcompose-plugin to build/push docker images
     dcompose {
         if (rootProject.hasProperty('dockerRegistry') && rootProject.hasProperty('pathToRepo')) {
-            
             def registryName = rootProject.getProperty('dockerRegistry')
             def pathToRepo = rootProject.getProperty('pathToRepo')
             def repositoryName = "${project.name - 'ServiceConnector' + '-service-connector'}".toLowerCase()
@@ -127,6 +131,14 @@ subprojects {
             }
         }
     }
+    
+    project.tasks.whenTaskAdded {
+        // gradle 7 warns w/o this and gradle 8 fails
+        if (it.name == 'copyServiceConnectorBuildFiles') {
+            it.dependsOn 'distTar'
+        }
+    }
+
     if (project.tasks.findByName('buildServiceConnectorImage')) {
         buildServiceConnectorImage.dependsOn assemble
     }
@@ -246,10 +258,16 @@ apply plugin: 'base'
 task testReport(type: TestReport) {
     destinationDir = file("$buildDir/reports/allTests")
     // Include the results from the `test` task in all subprojects
-    reportOn subprojects*.test
+    subprojects.each { subproject ->
+        subproject.tasks.withType(Test).each { testTask ->
+            println testTask
+            reportOn testTask
+        }
+    }
+//    reportOn subprojects*.test
 }
 
-def publishedProjects = subprojects.findAll()
+def publishedProjects = subprojects.findAll { !pythonProjects.contains(it.name) }
 
 // This task will create a combined code-coverage report for the unit tests.
 // To generate the data for this report, need to run tests with the jacocoReport flag:
@@ -297,7 +315,7 @@ task jacocoRootReport(type: JacocoReport, group: 'Coverage reports') {
     }
 
     reports {
-        //html.enabled = true // human readable
-        //xml.enabled = true // required by coveralls
+        html.required.set(true) // human readable
+        xml.required.set(true) // human readable
     }
 }

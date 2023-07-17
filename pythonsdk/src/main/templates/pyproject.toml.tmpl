@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vantiqservicesdk"
+version = "${vantiqServiceSdkVersion}"
+description = "SDK for building Vantiq service connectors in Python"
+authors = [
+    { name = "Vantiq", email = "sfitts@vantiq.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dynamic = [
+    "readme",
+]
+requires-python = ">=3.8"
+dependencies = [
+${vantiqServiceSdkDeps}
+]
+
+[project.license]
+text = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/Vantiq/vantiq-service-connectors"
+
+[tool.setuptools]
+py-modules = [
+    "vantiqservicesdk",
+]
+include-package-data = false
+
+[tool.setuptools.package-dir]
+"" = "src/main/python"
+
+[tool.setuptools.dynamic.readme]
+file = [
+    "README.md",
+    "LICENSE",
+]
+content-type = "text/markdown"
