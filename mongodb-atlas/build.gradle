@@ -43,7 +43,7 @@ startScripts{
 }
 
 dependencies {
-    implementation project(':javasdk-async')
+    implementation project(':java-rx-smgrsdk')
     implementation("com.google.guava:guava:31.1-jre") {
         constraints {
             implementation('com.google.errorprone:error_prone_annotations:2.18.0') {

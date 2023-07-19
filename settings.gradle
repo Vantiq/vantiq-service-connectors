@@ -1,5 +1,4 @@
 rootProject.name = 'vantiq-service-connectors'
-include 'javasdk-sync'
-include 'javasdk-async'
+include 'java-rx-smgrsdk'
 include 'mongodb-atlas'
 include 'pythonsdk'
