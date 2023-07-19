@@ -9,36 +9,48 @@
 This repository contains the source code for VANTIQ service connectors as well as SDKs for building these connectors.
 VANTIQ service connectors provide a means by which VANTIQ services can leverage native language implementations.
 
-VANTIQ service connectors support the creation of native storage managers.
-Within a VANTIQ system, a *storage manager* is the means by which the VANTIQ system communicates with other storage systems.
-Each VANTIQ storage manager references a service that provides the implementation of the storage manager API.
-The service determines whether that implementation is provided via VAIL procedures, or an alternative provided by a service connector.
+In general a service connector can be arbitrary code written in support of any service defined in a VANTIQ system. At
+present, we support two use case scenarios:
+
+    - Python Service Connectors in support of interfacing with Large Language Models (LLMs) and related tools
+    - Service Connectors that implement the Storage Manager API
+
+The two cases aren't mutually exclusive and there are likely to be additional uses for connectors going forward. For
+now, these two concurrent purposes result in two SDKs. The connectors built using them are typically targeted at either
+one scenario or the other.
 
 ## Repository Contents & Conventions
 
 The various directories within this repository represent either SDKs to build service connectors or service connectors themselves.
 By convention, SDKs will end with `sdk`.
 
-Each directory will contain a README (or README.md) file that describes the contents, and either contains or directs the reader toward appropriate documentation.
-Each directory should contain a LICENSE (or LICENSE.md) file that outlines the license for the code as well as any packages used.
+Each directory will contain a README (or README.md) file that describes the contents, and either contains or directs
+the reader toward appropriate documentation. Each directory should contain a LICENSE (or LICENSE.md) file that outlines
+the license for the code as well as any packages used.
 
 Bugs, issues, or enhancement requests should be reported using the GitHub *issues* tab.
 In any such report or request,
 please make clear the service connector or SDK to which the issue applies.
 Including the top level directory in the issue's `Title` is the most expeditious way of doing so.
 
-Some service connectors present will be written and supported by VANTIQ;
-others are contributed by other parties.
+Some service connectors present will be written and supported by VANTIQ; others are contributed by other parties.
 
-In general,
-branches other than `main` are considered development or experimental branches.
-Modulo any warnings or caveats in the README,
-things in the `main` branch should be considered usable.
+In general, branches other than `main` are considered development or experimental branches. Modulo any warnings or
+caveats in the README, things in the `main` branch should be considered usable.
 
 The repository is set up to require reviews of pull requests (PRs) going into main.
 The primary purpose here is to maintain some level of consistency.
 
-# Service Connectors Overview
+# Python Service Connectors Overview
+
+TBD
+
+# Storage Manager Service Connectors Overview
+
+VANTIQ storage manager service connectors support the creation of native storage managers.
+Within a VANTIQ system, a *storage manager* is the means by which the VANTIQ system communicates with other storage systems.
+Each VANTIQ storage manager references a service that provides the implementation of the storage manager API.
+The service determines whether that implementation is provided via VAIL procedures, or an alternative provided by a service connector.
 
 Please refer to the
 [VANTIQ documentation on service connectors](https://api.vantiq.com/docs/system/storagemanagers/index.html#service-connectors)
@@ -103,7 +115,7 @@ The following diagram represents the overall flow of messages between a service 
 
 `<Add Image Here>`
 
-## Creating the Service Connector
+## Creating the Storage Manager Service Connector
 
 The wiring involved in service connector based type resources is a bit more complex than that for VAIL based types.
 Prior to being able to define types managed by a native storage manager backed by the service connector,
@@ -136,7 +148,7 @@ Some of the connectors require other software to build.
 Generally, these are things that are not available as downloads via `gradle` dependencies,
 or are things that are specific to each use.
 
-Building the connectors require a Java compiler.  To build everything, you'll need at least Java 11.
+Building some of the connectors requires a Java compiler.  To build everything, you'll need at least Java 11.
 
 ## Building Docker Images
 
@@ -173,20 +185,22 @@ With the required properties in place, the tasks can then be executed as follows
 
 ### Build Image
 
-From the root directory of this repo, run the following command (this example builds the JDBC Connector)
+From the root directory of this repo, run the following command (this example builds the MongoDB Atlas Connector)
 ```
-./gradlew mongodb-atlas:buildServiceConnectorImage
+./gradlew mongodb-atlas:buildServiceConnectorImage -PrepositoryName=mongodb-service-connector
 ```
 
 ### Push Image
 
-From the root directory of this repo, run the following command (this example pushes the JDBC Connector image)
+From the root directory of this repo, run the following command (this example pushes the MongoDB Atlas Connector image)
 ```
-./gradlew mongodb-atlas:pushServiceConnectorImage
+./gradlew mongodb-atlas:pushServiceConnectorImage -PrepositoryName=mongodb-service-connector
 ```
 
 ### Deploying the connector images in the Vantiq IDE
 
 Once you have built and published the docker image for a given connector (as described above), you can then deploy it 
-into the Vantiq Cluster directly from the Vantiq IDE. This process is described
+into the Vantiq Cluster directly from the Vantiq IDE.
+
+For a Storage Manager Service Connector this process is described
 [here](https://dev.vantiq.com/docs/system/storagemanagers/index.html#service-connectors).
