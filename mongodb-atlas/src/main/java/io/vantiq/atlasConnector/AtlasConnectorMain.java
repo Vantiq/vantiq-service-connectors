@@ -11,7 +11,6 @@ public class AtlasConnectorMain {
 
     public void run() {
         SvcConnectorConfig config = SvcConnectorConfig.builder()
-                //.storageManagerClassName(MemoryStorageManagerImpl.class.getCanonicalName())
                 .storageManagerClassName(AtlasStorageMgr.class.getCanonicalName())
                 .build();
 

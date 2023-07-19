@@ -41,6 +41,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
+/**
+ * Storage manager for MongoDB Atlas. This storage manager is designed to work with MongoDB Atlas clusters. It
+ * supports all of the storage manager API calls.
+ */
 @Slf4j
 public class AtlasStorageMgr implements VantiqStorageManager {
     static final long QUERY_TIMEOUT = 50L;
@@ -72,6 +76,10 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         }).ignoreElements();
     }
 
+    /**
+     * Implement the storage manager API getTypeRestrictions -- the only thing we don't allow is the expiresAfter
+     * property.
+     */
     @Override
     public Single<Map<String, Object>> getTypeRestrictions() {
         // we support almost everything the VANTIQ type system supports. we restrict expiresAfter since we don't keep
@@ -81,9 +89,12 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         return Single.just(restrictions);
     }
 
+    /**
+     * initialize the type definition by creating the collection and indexes in Atlas
+     */
     @Override
-    public Single<Map<String, Object>>
-    initializeTypeDefinition(Map<String, Object> proposedType, Map<String, Object> existingType) {
+    public Single<Map<String, Object>> initializeTypeDefinition(Map<String, Object> proposedType, Map<String,
+            Object> existingType) {
         boolean capped = false;
         int cappedSize = proposedType.containsKey("maxStorage") ? (Integer)proposedType.get("maxStorage") : 0;
         int maxDocs = 0;
@@ -152,6 +163,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         }
     }
 
+    /**
+     * On type deletion we remove the collection from Atlas. Beware if you are connecting a vantiq type to a pre-existing
+     * collection in Atlas, it will be deleted when the type is deleted.
+     * 
+     * @param type the type defn
+     * @param options unused at present
+     */
     @Override
     public Completable typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options) {
         return collectionFromStorageName((String)type.get("storageName"), MongoCollection::drop).ignoreElements();
@@ -242,7 +260,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
     
     @Override
-    public Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values) {
+    public Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference,
+                                              Map<String, Object> values) {
         Document doc = new Document(values);
         if (doc.containsKey("_id") && !(doc.get("_id") instanceof ObjectId)) {
             if (!(doc.get("_id") instanceof String)) {
@@ -402,7 +421,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         }
         return qual;
     }
-    
+
+    /**
+     * clean the qualification and observe any request limits on producing results
+     * @param collection the collection to query
+     * @param props the properties to return
+     * @param qual the qualification
+     */
     private FindPublisher<Document>
     buildFind(MongoCollection<Document> collection, List<String> props, Map<String, Object> qual,
               Map<String, Object> options) {
@@ -455,6 +480,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 .map(AtlasStorageMgr::externalizeId));
     }
 
+    /**
+     * map the database name to an existing connection / database or create a new one
+     * 
+     * @param databaseName Atlas database name
+     * @param cmdFunction function to execute with the session
+     * @param <T> typically a Map, but generally the type of the observable expected
+     */
     <T> Flowable<T> usingSession(String databaseName, Function<MongoDatabase, Publisher<T>> cmdFunction) {
         Single<MongoDatabase> sessionObs = sessions.computeIfAbsent(databaseName, name -> {
             Single<MongoClient> clientObs = connection.connect(config);

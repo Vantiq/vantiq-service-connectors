@@ -8,12 +8,11 @@ import io.reactivex.rxjava3.core.Single;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Interface for storage manager service connector implementations. It encapsulates the storage manager API used by
+ * the Vantiq server to interact with storage managers.
+ */
 public interface VantiqStorageManager {
-    enum apis {
-        fetchTypeRestrictions,
-        initializeType,
-    }
-
     /**
      * do anything necessary prior to receiving storage manager related requests
      */

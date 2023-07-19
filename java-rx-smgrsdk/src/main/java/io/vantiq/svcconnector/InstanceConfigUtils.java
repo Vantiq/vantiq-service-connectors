@@ -1,9 +1,3 @@
-/*
- * Copyright (c) 2022 Vantiq, Inc.
- *
- * All rights reserved.
- */
-
 package io.vantiq.svcconnector;
 
 import com.google.common.io.Resources;
@@ -16,6 +10,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Properties;
+
+/**
+ * Utility class for loading the server configuration and secrets properties files.
+ *
+ * Copyright (c) 2023 Vantiq, Inc.
+ *
+ * All rights reserved.
+ */
 
 @Slf4j
 public class InstanceConfigUtils {

@@ -20,6 +20,11 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 
+/**
+ * This class is responsible for listening to the web socket and handling messages from the Vantiq server. It is
+ * instantiated by the main verticle when a new web socket connection is made. It dispatches requests to the class
+ * implementing the storage manager interface and sends the results back to the Vantiq server.
+ */
 @Slf4j
 public class ConnectorListener {
 

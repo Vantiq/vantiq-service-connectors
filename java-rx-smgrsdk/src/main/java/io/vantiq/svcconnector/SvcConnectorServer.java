@@ -8,6 +8,11 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.util.function.Supplier;
 
+/**
+ * The main class for the service connector server.  This class is responsible for starting the server and
+ * initializing the verticles that handle incoming requests. It is necessitated by the dance with configuring and
+ * starting Vert.x
+ */
 @Slf4j
 public class SvcConnectorServer {
     static Vertx vertx;

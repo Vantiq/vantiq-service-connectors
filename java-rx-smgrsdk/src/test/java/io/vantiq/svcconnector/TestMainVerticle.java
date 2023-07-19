@@ -1,6 +1,5 @@
 package io.vantiq.svcconnector;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
@@ -16,6 +15,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import java.util.UUID;
 import java.util.function.Supplier;
 
+/**
+ * basic sanity test for the service connector server -- bring it up and send a ping and hopefully get a pong back
+ */
 @ExtendWith(VertxExtension.class)
 public class TestMainVerticle {
 
@@ -27,7 +29,7 @@ public class TestMainVerticle {
     @BeforeEach
     void deploy_verticle(Vertx vertx, VertxTestContext testContext) {
         JsonObject verticleConfig = new JsonObject().put("storageManagerClassName",
-                "io.vantiq.svcconnector.TestStorageManager");
+                "io.vantiq.svcconnector.NoopStorageManager");
         DeploymentOptions deployOptions = new DeploymentOptions()
                 .setInstances(1)
                 .setConfig(verticleConfig);
@@ -56,9 +58,6 @@ public class TestMainVerticle {
                         testContext.failNow(new Throwable("unexpected response from server: " + buffer.toString()));
                     }
                 });
-                SvcConnSvrMessage msg = new SvcConnSvrMessage();
-                msg.requestId = UUID.randomUUID().toString();
-                msg.procName = "ping";
                 ar.result().write(Buffer.buffer("ping"), writeAr -> {
                     if (writeAr.failed()) {
                         testContext.failNow(writeAr.cause());

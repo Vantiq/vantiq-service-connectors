@@ -1,5 +1,8 @@
 package io.vantiq.svcconnector;
 
+/**
+ * The message format for responses sent from the storage manager service connector
+ */
 class SvcConnSvrResponse {
   public String requestId;
   public Object result;

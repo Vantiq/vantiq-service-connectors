@@ -9,7 +9,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-public class TestStorageManager implements VantiqStorageManager {
+/**
+ * a No-Op storage manager for testing, it is referenced by its canonical name in TestMainVerticle
+ */
+@SuppressWarnings("unused")
+public class NoopStorageManager implements VantiqStorageManager {
     @Override
     public Completable initialize() {
         return Completable.complete();

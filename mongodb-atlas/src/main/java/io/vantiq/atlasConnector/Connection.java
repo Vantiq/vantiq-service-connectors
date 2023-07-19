@@ -21,7 +21,6 @@ import java.util.concurrent.CountDownLatch;
  * Initially it works by using username / password credentials, but can be extended to utilize
  * MongoDB x509 certificate based authentication.
  */
-
 @Slf4j
 public class Connection {
     volatile Single<MongoClient> clientObservable;
