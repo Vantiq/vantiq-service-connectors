@@ -5,6 +5,10 @@ import lombok.Getter;
 
 /**
  * Configuration for starting the service connector server
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @Builder
 public class SvcConnectorConfig {

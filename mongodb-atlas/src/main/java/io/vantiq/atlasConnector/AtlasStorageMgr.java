@@ -44,6 +44,10 @@ import java.util.function.Function;
 /**
  * Storage manager for MongoDB Atlas. This storage manager is designed to work with MongoDB Atlas clusters. It
  * supports all of the storage manager API calls.
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @Slf4j
 public class AtlasStorageMgr implements VantiqStorageManager {
@@ -175,7 +179,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         return collectionFromStorageName((String)type.get("storageName"), MongoCollection::drop).ignoreElements();
     }
 
-    Publisher<String> createIndex(MongoCollection<Document> collection, Map<String, Object> index) {
+    private Publisher<String> createIndex(MongoCollection<Document> collection, Map<String, Object> index) {
         //noinspection unchecked
         Map<String,Object> options = (Map<String,Object>)index.get("options");
         if (options == null) {

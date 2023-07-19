@@ -1,6 +1,5 @@
 package io.vantiq.svcconnector;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
@@ -12,17 +11,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.UUID;
 import java.util.function.Supplier;
 
 /**
  * basic sanity test for the service connector server -- bring it up and send a ping and hopefully get a pong back
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @ExtendWith(VertxExtension.class)
 public class TestMainVerticle {
-
-    private final ObjectMapper mapper = new ObjectMapper();
-
     /*
      * Deploy a single instance of the request processing verticle for Mongodb Atlas
      */

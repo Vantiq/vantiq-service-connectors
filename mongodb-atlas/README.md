@@ -1,6 +1,6 @@
 # Storage Manager Service Connector for MongoDB Atlas
 
-Leverage the RxJava-based storage manager service connector SDK to build a connector for your MongoDB Atlas project.
+Leverages the Java storage manager SDK to build a connector for your MongoDB Atlas project.
 
 The connector implements all entry points in the storage manager service API. It handles each request in an asynchronous
 fashion returning results as Rx Observables. This approach ensures that any one request does not tie up the Vert.x

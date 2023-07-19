@@ -11,6 +11,10 @@ import java.util.Map;
 
 /**
  * a No-Op storage manager for testing, it is referenced by its canonical name in TestMainVerticle
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @SuppressWarnings("unused")
 public class NoopStorageManager implements VantiqStorageManager {

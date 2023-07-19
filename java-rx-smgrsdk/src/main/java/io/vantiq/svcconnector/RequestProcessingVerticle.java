@@ -18,6 +18,10 @@ import lombok.extern.slf4j.Slf4j;
  * This class is the main entry point for the service connector. It is responsible for starting the HTTP server and
  * handling incoming connection requests. Once a connection is established, it hands off the websocket to a 
  * ConnectionListener. 
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @Slf4j
 public class RequestProcessingVerticle extends AbstractVerticle implements Sessionizer {

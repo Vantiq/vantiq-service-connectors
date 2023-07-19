@@ -11,6 +11,10 @@ import java.util.Map;
 /**
  * Interface for storage manager service connector implementations. It encapsulates the storage manager API used by
  * the Vantiq server to interact with storage managers.
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 public interface VantiqStorageManager {
     /**

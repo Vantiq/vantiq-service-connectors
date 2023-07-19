@@ -91,11 +91,11 @@ The rest of the calls correspond to the standard data manipulation operations su
   - selectOne
   - delete
 
-What follows is a general description of how things work.  For details in Java, please see the [Java SDK](javasdk-sync/README.md).
+What follows is a general description of how things work.  For details in Java, please see the [Java SDK](java-rx-smgrsdk/README.md).
 
 ## Messages
 
-> Note:  When using the [Java SDK](javasdk-sync/README.md) you may not need this level of detail. The focus can stay on the
+> Note:  When using the [Java SDK](java-rx-smgrsdk/README.md) you may not need this level of detail. The focus can stay on the
 > implementation of the above storage manager API operations.
 
 Messages are received using a *SvcConnSvrMessage*.
@@ -107,13 +107,14 @@ the request
 `<service name>.<procedure name>`
  - `params` – the underlying parameters appropriate for the procedure invocation
 
-Response messages adopt the HTTP Codes by convention. Use 2xx for success, 300 or greater for errors.
+Response messages adopt the HTTP Codes by convention. Use 2xx for success, 400 or greater for errors.
 
 ### Overall Protocol
 
-The following diagram represents the overall flow of messages between a service connector and VANTIQ.
-
-`<Add Image Here>`
+For the storage manager service connector requests always come from the VANTIQ server. Responses can be either a single
+message (*SvcConnSvrResponse*) or a larger number of messages in the case of some select operations. The VANTIQ server
+will continually process a series of response messages as being part of the select operation response until the
+connector indicates there is no more data (via the `isEOF` field in the response).
 
 ## Creating the Storage Manager Service Connector
 
@@ -122,23 +123,13 @@ Prior to being able to define types managed by a native storage manager backed b
 you must first define and deploy the service connector itself. Once deployed, you can then define the type resource by
 selecting the storage manager and indicating the name of the service connector.
 
-Service connectors can either run local to your development environment (*external* from the perspective of the VANTIQ
-system), or run internal to the VANTIQ cluster leveraging dynamically allocated compute resources in our Kubernetes
-infrastructure.
-
-When creating an internal service connector, you must decide the amount of computing resources to dedicate:
-
-  - `name` -- the name of the service connector
-  - `isExternal` -- `false`
-  - `image` -- the containerized image to download and run
-  - `vCPU` -- the number of virtual CPUs to allocate
-  - `memory` -- the number megabytes to allocate
-  - `secret` -- a reference to a VANTIQ secret to be included as a properties file in the service connector POD
+For details on defining a storage manager service connector in the VANTIQ system, please refer to the 
+[documentation on service connectors](https://api.vantiq.com/docs/system/storagemanagers/index.html#service-connectors).
 
 Once the definition is added, the VANTIQ system schedules the deployment with Kubernetes. There will be a brief
 period while the cluster is spinning up the resources where the service connector will not be available. This
 starting state could last a few minutes. Once complete Kubernetes monitors the health of the service connector
-automatically, and may force restarts of the associated POD if / when the liveness checks fail.
+automatically, and may force restarts of the associated POD if the liveness checks fail.
 
 # Developer Notes
 

@@ -16,10 +16,14 @@ import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
 /**
- * This class (re)establishes connections to MongoDB Atlas cloud services<br/>
- * <br/>
+ * This class (re)establishes connections to MongoDB Atlas cloud services
+ * <p>
  * Initially it works by using username / password credentials, but can be extended to utilize
  * MongoDB x509 certificate based authentication.
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @Slf4j
 public class Connection {

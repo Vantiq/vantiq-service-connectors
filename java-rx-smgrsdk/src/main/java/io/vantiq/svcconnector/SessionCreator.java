@@ -15,6 +15,10 @@ import java.util.concurrent.TimeUnit;
  * Mix-in for a service that wants to manage the lifecycle of a session.
  * <p>
  * Created by sfitts on 10/24/2015.
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 public class SessionCreator {
   public static final long SESSION_TIMEOUT = TimeUnit.MINUTES.toMillis(15);

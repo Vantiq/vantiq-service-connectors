@@ -13,9 +13,9 @@ import java.util.Properties;
 
 /**
  * Utility class for loading the server configuration and secrets properties files.
- *
+ * <p>
  * Copyright (c) 2023 Vantiq, Inc.
- *
+ * <p>
  * All rights reserved.
  */
 

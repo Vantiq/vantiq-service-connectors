@@ -12,6 +12,10 @@ import java.util.function.Supplier;
  * The main class for the service connector server.  This class is responsible for starting the server and
  * initializing the verticles that handle incoming requests. It is necessitated by the dance with configuring and
  * starting Vert.x
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 @Slf4j
 public class SvcConnectorServer {

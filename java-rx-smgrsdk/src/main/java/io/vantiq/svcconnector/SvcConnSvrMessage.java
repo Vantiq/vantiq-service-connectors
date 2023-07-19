@@ -4,6 +4,10 @@ import java.util.Map;
 
 /**
  * The message format for messages sent to the storage manager service connector
+ * <p>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p>
+ * All rights reserved.
  */
 class SvcConnSvrMessage {
   public static final String WS_PING = "ping";
