@@ -2,6 +2,9 @@ buildscript {
     repositories { mavenCentral() }
     dependencies {
         classpath 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
+        classpath 'com.netflix.nebula:gradle-ospackage-plugin:4.4.0'
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.4.15"
+        classpath "gradle.plugin.com.github.lkishalmi.gradle:gradle-gatling-plugin:0.4.1"
     }
 }
 
@@ -31,13 +34,12 @@ private Map getHostInfo() {
 }
 
 group 'io.vantiq'
-// version scmVersion.version
-
-// scmVersion {
-//    versionIncrementer 'incrementMinor'
-// }
 
 ext {
+    slf4jApiVersion = '1.7.36'
+    eclipseMiloVersion = '0.2.1'
+    log4jVersion = '2.17.1'
+    lombokVersion = '1.18.26'
 }
 
 
@@ -63,8 +65,8 @@ allprojects {
 // Here, at config time, we'll set these properties to empty values.  This allows the dcompose-generated
 // tasks to complete without throwing errors. Any publish operations may fail, but they would fail anyway
 // since no credentials were provided.  If these aren't set, creating the images (which will be saved in the
-// local docker) will fail without a good reason. Setting these values allows the buildImages tasks to
-// complete without incident.
+// local docker) will fail without a good reason. Setting these values allows the "buildImages" tasks to
+// complete.
 
 if (!rootProject.hasProperty('dockerRegistryUser')) {
     project.ext.setProperty('dockerRegistryUser', '')
@@ -88,18 +90,23 @@ subprojects {
     apply plugin: 'eclipse'
     apply plugin: 'java'
     apply plugin: 'com.chrisgahlert.gradle-dcompose-plugin'
+    apply plugin: "io.franzbecker.gradle-lombok"
+    lombok {
+        version = "${lombokVersion}"
+        sha256 = ""
+    }
 
     // Using gradle-dcompose-plugin to build/push docker images
     dcompose {
         if (rootProject.hasProperty('dockerRegistry') && rootProject.hasProperty('pathToRepo')) {
             def registryName = rootProject.getProperty('dockerRegistry')
             def pathToRepo = rootProject.getProperty('pathToRepo')
-            def repositoryName = "${project.name - 'Source' + '-source'}".toLowerCase()
+            def repositoryName = "${project.name - 'ServiceConnector' + '-service-connector'}".toLowerCase()
             if (rootProject.hasProperty('repositoryName')) {
                 repositoryName = rootProject.getProperty('repositoryName')
             }
 
-            connector {
+            serviceConnector {
                 buildFiles = project.copySpec {
                     from "$projectDir/src/main/docker/"
                     from "$projectDir/build/distributions/${project.name}.tar"
@@ -111,7 +118,8 @@ subprojects {
 
                 def repositoryBase = registryName + '/' + pathToRepo + '/' + repositoryName
                 repositoryBase = repositoryBase.replace('//', '/')
-                repository = rootProject.hasProperty('imageTag') ? repositoryBase + ":${rootProject.getProperty('imageTag')}" : repositoryBase
+                repository = rootProject.hasProperty('imageTag') ?
+                        repositoryBase + ":${rootProject.getProperty('imageTag')}" : repositoryBase
                 logBuildStatus = true
                 buildLogFile = file("$buildDir/dockerBuildLog.txt")
             }
@@ -124,20 +132,27 @@ subprojects {
         }
     }
     
-// Not sure if service connectors will have this
-//    if (project.tasks.findByName('buildConnectorImage')) {
-//        buildConnectorImage.dependsOn assemble
-//    }
+    project.tasks.whenTaskAdded {
+        // gradle 7 warns w/o this and gradle 8 fails
+        if (it.name == 'copyServiceConnectorBuildFiles') {
+            it.dependsOn 'distTar'
+        }
+    }
+
+    if (project.tasks.findByName('buildServiceConnectorImage')) {
+        buildServiceConnectorImage.dependsOn assemble
+    }
 
     // only run with code-coverage metrics if property is explicitly specified
     if (rootProject.hasProperty('jacocoReport')) {
         apply plugin: "jacoco"
     }
 
-    sourceCompatibility = 1.8
-    java.sourceCompatibility = 1.8
-    java.targetCompatibility = JavaVersion.VERSION_1_8
-    
+    sourceCompatibility = 1.11
+    java.sourceCompatibility = 1.11
+    java.targetCompatibility = JavaVersion.VERSION_11
+
+
     // Simulate provided dependencies
     configurations {
         provided
@@ -166,6 +181,10 @@ subprojects {
     }
 
     dependencies {
+        provided "org.projectlombok:lombok:${lombokVersion}"
+
+        implementation 'org.codehaus.groovy:groovy-all:2.4.11'
+        implementation "org.slf4j:slf4j-api:${slf4jApiVersion}"
     }
 
     compileGroovy {
