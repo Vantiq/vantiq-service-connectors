@@ -12,7 +12,6 @@ CLIENT_CONFIG_MSG = '_setClientConfig'
 
 class BaseVantiqServiceConnector:
 
-
     def __init__(self):
         self._active_requests: Set = set()
         self._api = FastAPI()
