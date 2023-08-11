@@ -40,10 +40,11 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Storage manager for MongoDB Atlas. This storage manager is designed to work with MongoDB Atlas clusters. It
- * supports all of the storage manager API calls.
+ * supports all the storage manager API calls.
  * <p>
  * Copyright (c) 2023 Vantiq, Inc.
  * <p>
@@ -300,9 +301,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             return Flowable.empty();
         }
         List<Document> docs = new ArrayList<>();
-        values.forEach(value -> {
-            docs.add(new Document(value).append("_id", new ObjectId()));
-        });
+        values.forEach(value -> docs.add(new Document(value).append("_id", new ObjectId())));
 
         return collectionFromStorageName(storageName, collection -> {
             InsertManyOptions insertOpts = new InsertManyOptions().ordered(false);
@@ -497,9 +496,10 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             return clientObs.map(client -> client.getDatabase(databaseName)).cache();
         });
         AtomicLong start = new AtomicLong();
-        return sessionObs.flatMapPublisher(cmdFunction::apply).doOnSubscribe(s -> {
-            start.set(System.nanoTime());
-        }).observeOn(rxScheduler == null ? Schedulers.trampoline() : rxScheduler).doOnComplete(() -> {
+        return sessionObs.flatMapPublisher(cmdFunction::apply)
+                .doOnSubscribe(s ->start.set(System.nanoTime()))
+                .observeOn(rxScheduler == null ? Schedulers.trampoline() : rxScheduler)
+                .doOnComplete(() -> {
             long end = System.nanoTime();
             long duration = end - start.get();
             log.debug("Atlas round trip time: {} ms", duration / 1000000);
@@ -545,4 +545,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             Math.toIntExact(dr.getDeletedCount())
         );
     }
+
+    @Override
+    public Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> pipeline, Map<String, Object> options) {
+        return this.collectionFromStorageName(storageName, collection -> {
+            List<Document> mongoPipeline = pipeline.stream().map(Document::new).collect(Collectors.toList());
+            return collection.aggregate(mongoPipeline).maxTime(QUERY_TIMEOUT, QUERY_TIMEOUT_TIMEUNIT);
+        }).map(AtlasStorageMgr::externalizeId);
+    }
+
 }

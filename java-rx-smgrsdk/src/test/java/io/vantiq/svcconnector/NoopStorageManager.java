@@ -72,4 +72,9 @@ public class NoopStorageManager implements VantiqStorageManager {
     public Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual) {
         return Single.just(0);
     }
+
+    @Override
+    public Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> pipeline, Map<String, Object> options) {
+        return Flowable.empty();
+    }
 }

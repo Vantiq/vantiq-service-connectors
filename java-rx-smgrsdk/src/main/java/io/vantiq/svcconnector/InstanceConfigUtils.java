@@ -144,7 +144,7 @@ public class InstanceConfigUtils {
         }
         return localServerConfigProps.getProperty("defaultDatabase");
     }
-    
+
     /**
      * Helper method used to get the TCP Probe Port if specified in the server.config
      *

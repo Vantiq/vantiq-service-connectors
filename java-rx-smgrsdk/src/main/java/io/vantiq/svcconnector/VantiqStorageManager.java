@@ -55,4 +55,7 @@ public interface VantiqStorageManager {
                                          Map<String, Object> options);
     
     Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual);
+    
+    Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference,
+                                            List<Map<String, Object>> pipeline, Map<String, Object> options);
 }

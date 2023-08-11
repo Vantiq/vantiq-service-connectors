@@ -23,11 +23,10 @@ import lombok.extern.slf4j.Slf4j;
  * <p>
  * All rights reserved.
  */
+@Getter
 @Slf4j
 public class RequestProcessingVerticle extends AbstractVerticle implements Sessionizer {
-    @Getter
     SessionStore sessionStore;
-    @Getter
     SessionCreator sessionCreator;
     static VantiqStorageManager storageManager;
 
@@ -63,19 +62,19 @@ public class RequestProcessingVerticle extends AbstractVerticle implements Sessi
                 SockJSHandlerOptions options = new SockJSHandlerOptions().setMaxBytesStreaming(1024 * 1024);
                 SockJSHandler sockJSHandler = SockJSHandler.create(getVertx(), options);
                 router.route("/wsock/*").subRouter(sockJSHandler.socketHandler(this::handleWebsocketRequest));
+                log.debug("creating http server at port {}", config.obtainPrimaryPort());
                 vertx.createHttpServer().requestHandler(router).listen(config.obtainPrimaryPort(), http -> {
                     if (http.succeeded()) {
                         startPromise.complete();
-                        log.info("HTTP server started on port " + config.obtainPrimaryPort());
+                        log.info("HTTP server successfully started on port " + config.obtainPrimaryPort());
                     } else {
+                        log.debug("create http server failed with {}", http.cause().getMessage());
                         startPromise.fail(http.cause());
                     }
                 });
             })
         ).subscribe(
-            () -> {
-                log.debug("Service connector started");
-            },
+            () -> log.debug("Service connector started"),
             err -> {
                 log.error("Error starting service connector", err);
                 startPromise.fail(err);
@@ -85,6 +84,7 @@ public class RequestProcessingVerticle extends AbstractVerticle implements Sessi
 
     public void handleWebsocketRequest(SockJSSocket socket) {
         log.debug("new websocket connection");
+        @SuppressWarnings("unused")
         ConnectorListener listener = new ConnectorListener(socket, storageManager, this);
     }
 }

@@ -177,6 +177,12 @@ public class ConnectorListener {
                         (Map<String, Object>) msg.params.get("properties"), (Map<String, Object>) msg.params.get("qual"),
                         (Map<String, Object>) msg.params.get("options"));
                     break;
+                case "aggregate":
+                    result = storageManager.aggregate((String) msg.params.get("storageName"),
+                            (Map<String, Object>) msg.params.get("storageManagerReference"),
+                            (List<Map<String, Object>>) msg.params.get("pipeline"),
+                            (Map<String, Object>) msg.params.get("options"));
+                    break;
                 case "selectOne":
                     result = storageManager.selectOne((String) msg.params.get("storageName"),
                         (Map<String, Object>) msg.params.get("storageManagerReference"),
