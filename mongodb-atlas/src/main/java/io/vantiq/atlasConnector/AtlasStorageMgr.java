@@ -40,6 +40,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * Storage manager for MongoDB Atlas. This storage manager is designed to work with MongoDB Atlas clusters. It
@@ -545,4 +546,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             Math.toIntExact(dr.getDeletedCount())
         );
     }
+
+    @Override
+    public Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> pipeline, Map<String, Object> options) {
+        return this.collectionFromStorageName(storageName, collection -> {
+            List<Document> mongoPipeline = pipeline.stream().map(Document::new).collect(Collectors.toList());
+            return collection.aggregate(mongoPipeline).maxTime(QUERY_TIMEOUT, QUERY_TIMEOUT_TIMEUNIT);
+        }).map(AtlasStorageMgr::externalizeId);
+    }
+
 }
