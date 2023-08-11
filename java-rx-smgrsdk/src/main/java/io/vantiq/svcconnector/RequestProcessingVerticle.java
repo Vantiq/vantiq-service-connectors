@@ -23,11 +23,10 @@ import lombok.extern.slf4j.Slf4j;
  * <p>
  * All rights reserved.
  */
+@Getter
 @Slf4j
 public class RequestProcessingVerticle extends AbstractVerticle implements Sessionizer {
-    @Getter
     SessionStore sessionStore;
-    @Getter
     SessionCreator sessionCreator;
     static VantiqStorageManager storageManager;
 
@@ -75,9 +74,7 @@ public class RequestProcessingVerticle extends AbstractVerticle implements Sessi
                 });
             })
         ).subscribe(
-            () -> {
-                log.debug("Service connector started");
-            },
+            () -> log.debug("Service connector started"),
             err -> {
                 log.error("Error starting service connector", err);
                 startPromise.fail(err);
@@ -87,6 +84,7 @@ public class RequestProcessingVerticle extends AbstractVerticle implements Sessi
 
     public void handleWebsocketRequest(SockJSSocket socket) {
         log.debug("new websocket connection");
+        @SuppressWarnings("unused")
         ConnectorListener listener = new ConnectorListener(socket, storageManager, this);
     }
 }
