@@ -13,7 +13,6 @@ CLIENT_CONFIG_MSG = '_setClientConfig'
 class BaseVantiqServiceConnector:
 
     def __init__(self):
-        self._active_requests: Set = set()
         self._api = FastAPI()
         self._router = APIRouter()
         self._router.add_api_route("/healthz", self._health_check, methods=["GET"])
@@ -55,6 +54,7 @@ class BaseVantiqServiceConnector:
 
     async def __websocket_endpoint(self, websocket: WebSocket):
         await websocket.accept()
+        active_requests: Set = set()
         try:
             # Start by asking for our configuration (if we don't have it)
             if self._client_config is None:
@@ -73,15 +73,15 @@ class BaseVantiqServiceConnector:
 
                 # Add the task to the set of active requests and remove when done.
                 # See https://docs.python.org/3/library/asyncio-task.html#creating-tasks
-                self._active_requests.add(task)
-                task.add_done_callback(self._active_requests.discard)
+                active_requests.add(task)
+                task.add_done_callback(active_requests.discard)
 
         except WebSocketDisconnect:
             pass
 
         finally:
             # Cancel all active requests
-            for task in self._active_requests:
+            for task in active_requests:
                 task.cancel()
 
     async def __process_message(self, websocket: WebSocket, msg_bytes: bytes) -> None:
