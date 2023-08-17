@@ -36,10 +36,13 @@ class LoggerConfig:
                 config = yaml.load(open(config_file), Loader=yaml.SafeLoader)
                 logging.config.dictConfig(config)
                 self._active_config_file = config_file
+                logging.getLogger().info("Logging configured using %s", config_file)
                 break
 
         if self._active_config_file is not None and self._monitor_interval > 0:
             # Start a background task to monitor the log files
+            logging.getLogger().info("Checking %s for changes every %ss", self._active_config_file,
+                                     self._monitor_interval)
             self._monitor_thread = Thread(target=self._monitor_config_file, daemon=True, name='Log Config Monitor')
             self._monitor_thread.start()
 

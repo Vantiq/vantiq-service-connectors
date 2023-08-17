@@ -47,8 +47,10 @@ def test_invoke():
         assert response.status_code == 200
         result = response.text
         assert "active_requests 0.0" in result
-        assert "websocket_count 1.0" in result
-        assert "request_latency_seconds_count{procedure=\"test_procedure\"} 1.0" in result
+        assert "webSockets_active 1.0" in result
+        exec_count = 'resources_executions_count{id="TestServiceConnector",resource="system.serviceconnectors",' \
+                     'serviceProcedure="test_procedure"} 1.0'
+        assert exec_count in result
 
 
 def test_get_config():

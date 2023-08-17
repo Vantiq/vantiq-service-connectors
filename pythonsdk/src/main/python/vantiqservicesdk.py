@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import json
 import logging
-from typing import Union, Any, Set
+from typing import Union, Any, Set, TypeVar
 
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect
 from prometheus_client import make_asgi_app, Gauge, Counter, Summary
@@ -23,6 +23,7 @@ class BaseVantiqServiceConnector:
     - A procedure that can be used to get the Vantiq client, configured to communicate with the Vantiq
         namespace that is running the service.
     """
+
     def __init__(self):
         # Create FastAPI and add routes
         self._api = FastAPI()
@@ -38,13 +39,13 @@ class BaseVantiqServiceConnector:
         metrics_app = make_asgi_app()
         self._api.mount("/metrics", metrics_app)
 
-        # Set up prometheus metrics
-        self._websocket_count = Gauge('websocket_count', 'Current number of websockets')
+        # Set up prometheus metrics -- these are aligned with the Vantiq metrics to the extent possible
+        self._websocket_count = Gauge('webSockets_active', 'Current number of websockets')
         self._active_requests = Gauge('active_requests', 'Current number of active requests')
-        self._request_latency = Summary('request_latency_seconds', 'Request latency in seconds',
-                                        ['procedure'])
-        self._failed_requests = Counter('failed_requests', 'Number of failed requests',
-                                        ['procedure'])
+        self._resources_executions = Summary('resources_executions', 'Resource execution metrics',
+                                             ['resource', 'id', 'serviceProcedure'])
+        self._failed_requests = Counter('resources_executions_failed', 'Number of failed requests',
+                                        ['resource', 'id', 'serviceProcedure'])
 
         # Set up the client config
         self._client_config: Union[dict, None] = None
@@ -139,13 +140,15 @@ class BaseVantiqServiceConnector:
             params = request.get("params")
 
             # Invoke the procedure and store the result
-            with self._request_latency.labels(procedure_name).time():
+            request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
+            with request_timer.time():
                 result = await self.__invoke(procedure_name, params)
                 response["result"] = result
 
         except Exception as e:
             self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
-            self._failed_requests.labels(procedure_name).inc()
+            # noinspection PyUnresolvedReferences
+            self.__get_resource_metric(self._failed_requests, procedure_name).inc()
             response["errorMsg"] = str(e)
 
         await websocket.send_json(response, "binary")
@@ -181,3 +184,9 @@ class BaseVantiqServiceConnector:
             return await func(**params)
         else:
             return func(**params)
+
+    T = TypeVar('T')
+
+    def __get_resource_metric(self, metric: T, procedure_name: str) -> T:
+        return metric.labels(resource='system.serviceconnectors', id=self.service_name,
+                             serviceProcedure=procedure_name)
