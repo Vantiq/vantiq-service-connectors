@@ -33,3 +33,4 @@ test/system/groovy20/jars/*
 *.orig
 *.swp
 **/secrets.properties
+local/

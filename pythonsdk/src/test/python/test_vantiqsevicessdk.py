@@ -1,18 +1,22 @@
+import logging
+import os
+
 from starlette.testclient import TestClient
 
+import testservice
 from testservice import TestServiceConnector
 from vantiqservicesdk import CLIENT_CONFIG_MSG
 
 # Prevent pytest from trying to collect TestServiceConnector as tests:
 TestServiceConnector.__test__ = False
 
-
-app = TestServiceConnector().app
+app = testservice.app
 client = TestClient(app)
 config_set = False
 
 
 def test_health_check():
+    logging.critical(f"CWD: {os.getcwd()}")
     response = client.get("/healthz")
     assert response.status_code == 200
     assert response.json() == "TestServiceConnector is healthy"
@@ -39,6 +43,12 @@ def test_invoke():
         assert response['requestId'] == "123"
         assert response['isEOF']
         assert response['result'] == 'This is a test'
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        result = response.text
+        assert "active_requests 0.0" in result
+        assert "websocket_count 1.0" in result
+        assert "request_latency_seconds_count{procedure=\"test_procedure\"} 1.0" in result
 
 
 def test_get_config():
