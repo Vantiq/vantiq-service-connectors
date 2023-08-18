@@ -1,5 +1,4 @@
-from loggerconfig import LoggerConfig
-from vantiqservicesdk import BaseVantiqServiceConnector
+from vantiqservicesdk import BaseVantiqServiceConnector, LoggerConfig
 
 
 class TestServiceConnector(BaseVantiqServiceConnector):

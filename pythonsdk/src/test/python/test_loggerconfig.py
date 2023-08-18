@@ -5,7 +5,7 @@ import tempfile
 import time
 from os.path import exists
 
-from loggerconfig import LoggerConfig
+from vantiqservicesdk import LoggerConfig
 
 # The IDE and the command line have different working directories
 LOGGER_CONFIG_FILE = 'logger.yaml'
