@@ -146,9 +146,14 @@ public class ConnectorListener {
     private Flowable<?> dispatch(SvcConnSvrMessage msg) {
         Flowable<?> result;
         if (msg.procName != null) {
-            // procedure name is <service name>.<procedure name>
+            // procedure name is <package name>.<service name>.<procedure name>
             String[] parts = msg.procName.split("\\.");
-            switch (parts.length == 2 ? parts[1] : parts[0]) {
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("unrecognized storage manager service procedure call: "
+                        + msg.procName);
+            }
+            String procName = parts[parts.length-1];
+            switch (procName) {
                 case "update":
                     result = storageManager.update((String) msg.params.get("storageName"),
                         (Map<String, Object>) msg.params.get("storageManagerReference"),
