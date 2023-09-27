@@ -5,6 +5,7 @@ import logging
 import logging.config
 import os
 import time
+from contextlib import asynccontextmanager
 from os.path import exists
 from threading import Thread
 from typing import Union, Any, Set, TypeVar, List
@@ -32,7 +33,7 @@ class BaseVantiqServiceConnector:
 
     def __init__(self):
         # Create FastAPI and add routes
-        self._api = FastAPI()
+        self._api = FastAPI(lifespan=self.__lifespan)
         self._router = APIRouter()
         self._router.add_api_route("/healthz", self._health_check, methods=["GET"])
         self._router.add_api_route("/status", self._status, methods=["GET"])
@@ -61,6 +62,19 @@ class BaseVantiqServiceConnector:
         cur_class = self.__class__
         self._logger = logging.getLogger(f"{cur_class.__module__}.{cur_class.__name__}")
 
+    # noinspection PyUnusedLocal
+    @asynccontextmanager
+    async def __lifespan(self, app):
+        await self._startup()
+        yield
+        await self._shutdown()
+
+    async def _startup(self):
+        pass
+
+    async def _shutdown(self):
+        pass
+
     @property
     def service_name(self) -> str:
         return 'BasePythonService'
@@ -74,6 +88,12 @@ class BaseVantiqServiceConnector:
             if self._client_config is None:
                 await self._config_set.wait()
             return self._client_config
+
+    async def _set_client_config(self, config: dict) -> bool:
+        async with self._config_set:
+            self._client_config = config
+            self._config_set.notify()
+        return True
 
     async def _get_vantiq_client(self) -> Vantiq:
         config = await self._get_client_config()
@@ -166,10 +186,7 @@ class BaseVantiqServiceConnector:
 
         # Are we being given our configuration?
         if procedure_name == CLIENT_CONFIG_MSG:
-            async with self._config_set:
-                self._client_config = params.pop("config", None)
-                self._config_set.notify()
-            return True
+            return await self._set_client_config(params.pop("config", None))
 
         # Confirm that the procedure exists
         if not hasattr(self, procedure_name):
