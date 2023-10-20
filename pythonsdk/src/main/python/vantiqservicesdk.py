@@ -92,7 +92,7 @@ class BaseVantiqServiceConnector:
     async def _set_client_config(self, config: dict) -> bool:
         async with self._config_set:
             self._client_config = config
-            self._config_set.notify()
+            self._config_set.notify_all()
         return True
 
     async def _get_vantiq_client(self) -> Vantiq:

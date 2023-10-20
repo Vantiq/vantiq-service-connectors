@@ -13,7 +13,7 @@ ext {
         pypi_repo = 'testpypi'
     }
     if (!project.rootProject.hasProperty('vantiqServiceSdkVersion')) {
-        vantiqServiceSdkVersion = '0.0.7'
+        vantiqServiceSdkVersion = '0.0.8'
     }
     
     // See if we are using virtualenvwrapper and if so put the virtualenv in the WORKON_HOME
@@ -83,7 +83,11 @@ tasks.register('generateRequirements', PythonTask) {
     inputs.files('requirements-build.in', 'requirements-sdk.in')
     outputs.file('requirements.txt')
     module = 'piptools'
-    command = 'compile requirements-build.in requirements-sdk.in --unsafe-package py -o requirements.txt'
+    command = 'compile requirements-build.in requirements-sdk.in --resolver=backtracking --unsafe-package py ' +
+            '-o requirements.txt'
+    if (project.hasProperty('upgrade')) {
+        command += ' --upgrade'
+    }
 }
 
 tasks.register('pytest', PythonTask) {
