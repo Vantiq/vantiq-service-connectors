@@ -39,17 +39,17 @@ public class NoopStorageManager implements VantiqStorageManager {
     }
 
     @Override
-    public Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values) {
+    public Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values, Map<String, Object> options) {
         return Single.just(Collections.emptyMap());
     }
 
     @Override
-    public Flowable<Map<String, Object>> insertMany(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> values) {
+    public Flowable<Map<String, Object>> insertMany(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> values, Map<String, Object> options) {
         return Flowable.empty();
     }
 
     @Override
-    public Maybe<Map<String, Object>> update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values, Map<String, Object> qual) {
+    public Maybe<Map<String, Object>> update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values, Map<String, Object> qual, Map<String, Object> options) {
         return Maybe.empty();
     }
 
@@ -69,12 +69,27 @@ public class NoopStorageManager implements VantiqStorageManager {
     }
 
     @Override
-    public Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual) {
+    public Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual, Map<String, Object> options) {
         return Single.just(0);
     }
 
     @Override
     public Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> pipeline, Map<String, Object> options) {
         return Flowable.empty();
+    }
+
+    @Override
+    public Completable startTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference, Map<String, Object> options) {
+        return Completable.complete();
+    }
+
+    @Override
+    public Completable commitTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference, Map<String, Object> options) {
+        return Completable.complete();
+    }
+
+    @Override
+    public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference, Map<String, Object> options) {
+        return Completable.complete();
     }
 }

@@ -36,13 +36,13 @@ public interface VantiqStorageManager {
     Completable typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options);
 
     Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference,
-                                         Map<String, Object> values);
+                                         Map<String, Object> values, Map<String, Object> options);
     
     Flowable<Map<String, Object>> insertMany(String storageName, Map<String, Object> storageManagerReference,
-                                             List<Map<String, Object>> values);
+                                             List<Map<String, Object>> values, Map<String, Object> options);
     
     Maybe<Map<String, Object>> update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values,
-                                         Map<String, Object> qual);
+                                         Map<String, Object> qual, Map<String, Object> options);
     
     Single<Integer> count(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual,
                             Map<String, Object> options);
@@ -54,8 +54,18 @@ public interface VantiqStorageManager {
                                          Map<String, Object> properties, Map<String, Object> qual,
                                          Map<String, Object> options);
     
-    Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual);
+    Single<Integer> delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual,
+                           Map<String, Object> options);
     
     Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference,
                                             List<Map<String, Object>> pipeline, Map<String, Object> options);
+
+    Completable startTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
+                                    Map<String, Object> options);
+
+    Completable commitTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
+                                 Map<String, Object> options);
+
+    Completable abortTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
+                                  Map<String, Object> options);
 }
