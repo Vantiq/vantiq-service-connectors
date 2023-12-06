@@ -610,7 +610,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
         }
         return sessionObs.flatMapPublisher(session ->
-                Flowable.fromPublisher(session.commitTransaction()).doOnComplete(session::close)
+                Flowable.fromPublisher(session.abortTransaction()).doOnComplete(session::close)
         ).ignoreElements();
     }
 

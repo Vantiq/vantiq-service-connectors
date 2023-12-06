@@ -245,6 +245,13 @@ public class ConnectorListener {
                             (Map<String, Object>) msg.params.get("options")
                     ).toFlowable();
                     break;
+                case "abortTransaction":
+                    result = storageManager.abortTransaction(
+                            (String)msg.params.get("vantiqTransactionId"),
+                            (Map<String, Object>) msg.params.get("storageManagerReference"),
+                            (Map<String, Object>) msg.params.get("options")
+                    ).toFlowable();
+                    break;
                 default:
                     result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
                         msg.procName));
