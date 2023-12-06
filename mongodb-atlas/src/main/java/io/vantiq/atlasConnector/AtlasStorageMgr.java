@@ -578,7 +578,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                     // if we get here, startSession returned an empty publisher, should  never happen, but ...
                     Flowable.error(new Exception("Failed to create a session in which to start a transaction"))
                 ).firstOrError().doOnSuccess(session ->
-                    log.info("transactions started in session {} with number {}",
+                    log.debug("transactions started in session {} with number {}",
                             session.getServerSession().getIdentifier(),
                             session.getServerSession().getTransactionNumber())
                 );
@@ -595,7 +595,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         }
         return sessionObs.flatMapPublisher(session ->
                 Flowable.fromPublisher(session.commitTransaction()).doOnComplete(() ->
-                    log.info("transaction {} committed", vantiqTransactionId)
+                    log.debug("transaction {} committed", vantiqTransactionId)
                 ).doOnError(t ->
                     log.warn("transaction {} failed to commit with error: {}", vantiqTransactionId, t.getMessage())
                 ).doOnComplete(session::close)
