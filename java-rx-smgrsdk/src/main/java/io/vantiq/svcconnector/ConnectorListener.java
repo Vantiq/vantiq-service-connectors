@@ -234,21 +234,18 @@ public class ConnectorListener {
                 case "startTransaction":
                     result = storageManager.startTransaction(
                         (String)msg.params.get("vantiqTransactionId"),
-                        (Map<String, Object>) msg.params.get("storageManagerReference"),
                         (Map<String, Object>) msg.params.get("options")
                     ).toFlowable();
                     break;
                 case "commitTransaction":
                     result = storageManager.commitTransaction(
                             (String)msg.params.get("vantiqTransactionId"),
-                            (Map<String, Object>) msg.params.get("storageManagerReference"),
                             (Map<String, Object>) msg.params.get("options")
                     ).toFlowable();
                     break;
                 case "abortTransaction":
                     result = storageManager.abortTransaction(
                             (String)msg.params.get("vantiqTransactionId"),
-                            (Map<String, Object>) msg.params.get("storageManagerReference"),
                             (Map<String, Object>) msg.params.get("options")
                     ).toFlowable();
                     break;

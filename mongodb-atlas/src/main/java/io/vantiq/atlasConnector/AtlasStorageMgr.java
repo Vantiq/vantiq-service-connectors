@@ -588,8 +588,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
     @Override
     public Completable
-    startTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
-                     Map<String, Object> options) {
+    startTransaction(String vantiqTransactionId, Map<String, Object> options) {
         return Completable.fromAction(() ->
             transactions.asMap().computeIfAbsent(vantiqTransactionId, id -> {
                 Single<MongoClient> clientObs = connection.connect(config);
@@ -607,8 +606,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
 
     @Override
-    public Completable commitTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
-                                         Map<String, Object> options) {
+    public Completable commitTransaction(String vantiqTransactionId, Map<String, Object> options) {
         Single<ClientSession> sessionObs = transactions.asMap().remove(vantiqTransactionId);
         if (sessionObs == null) {
             return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
@@ -623,8 +621,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
 
     @Override
-    public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
-                                        Map<String, Object> options) {
+    public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> options) {
         Single<ClientSession> sessionObs = transactions.asMap().remove(vantiqTransactionId);
         if (sessionObs == null) {
             return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));

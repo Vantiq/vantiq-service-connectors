@@ -79,17 +79,17 @@ public class NoopStorageManager implements VantiqStorageManager {
     }
 
     @Override
-    public Completable startTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference, Map<String, Object> options) {
+    public Completable startTransaction(String vantiqTransactionId, Map<String, Object> options) {
         return Completable.complete();
     }
 
     @Override
-    public Completable commitTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference, Map<String, Object> options) {
+    public Completable commitTransaction(String vantiqTransactionI, Map<String, Object> options) {
         return Completable.complete();
     }
 
     @Override
-    public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference, Map<String, Object> options) {
+    public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> options) {
         return Completable.complete();
     }
 }

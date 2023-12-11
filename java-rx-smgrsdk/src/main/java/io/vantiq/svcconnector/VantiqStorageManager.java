@@ -60,12 +60,9 @@ public interface VantiqStorageManager {
     Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference,
                                             List<Map<String, Object>> pipeline, Map<String, Object> options);
 
-    Completable startTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
-                                    Map<String, Object> options);
+    Completable startTransaction(String vantiqTransactionId, Map<String, Object> options);
 
-    Completable commitTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
-                                 Map<String, Object> options);
+    Completable commitTransaction(String vantiqTransactionId, Map<String, Object> options);
 
-    Completable abortTransaction(String vantiqTransactionId, Map<String, Object> storageManagerReference,
-                                  Map<String, Object> options);
+    Completable abortTransaction(String vantiqTransactionId, Map<String, Object> options);
 }
