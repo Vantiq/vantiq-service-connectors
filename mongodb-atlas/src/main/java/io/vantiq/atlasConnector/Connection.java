@@ -64,8 +64,13 @@ public class Connection {
             Properties properties = config.loadServerConfig();
             Properties secrets = config.loadServerSecrets();
             String connectionString = "mongodb+srv://" + secrets.getProperty("secret") 
-                    + "@" + properties.getProperty("clusterHostname", "cluster0.h7jzx3i.mongodb.net") 
-                    + "/?retryWrites=true&w=1";
+                    + "@" + properties.getProperty("clusterHostname", "cluster0.h7jzx3i.mongodb.net");
+            if (properties.containsKey("defaultDatabase")) {
+                connectionString += "/" + properties.getProperty("defaultDatabase") 
+                        + "?authSource=admin&retryWrites=true&w=1";
+            } else {
+                connectionString += "/?retryWrites=true&w=1";
+            }
 
             ServerApi serverApi = ServerApi.builder()
                     .version(ServerApiVersion.V1)

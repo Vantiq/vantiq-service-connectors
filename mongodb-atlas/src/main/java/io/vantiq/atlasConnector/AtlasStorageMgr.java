@@ -133,15 +133,34 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             }
             capped = true;
         }
+        // puzzle out the database and collection names
+        String dbName = config.obtainDefaultDatabase();
+        Map<String, Object> type = existingType != null ? existingType : proposedType;
+        String collectionName = (String)type.get("name");
+        if (type.containsKey("storageName")&& type.get("storageName") instanceof String) {
+            String[] parts = ((String)type.get("storageName")).split(":");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException(
+                        "MongoDB Atlas type storage name must have the format: <database>:<collection>");
+            }
+            dbName = parts[0];
+            collectionName = parts[1];
+        }
+        if (dbName == null) {
+            throw new IllegalStateException(
+                    "No storage name specified for MongoDB Atlas collection and no default database was configured");
+        }
+        String finalName = collectionName;
+        String finalDbName = dbName;
         if (existingType == null) {
             CreateCollectionOptions createOptions = new CreateCollectionOptions()
                     .capped(capped)
                     .sizeInBytes(cappedSize)
                     .maxDocuments(maxDocs);
-            return usingSession(config.obtainDefaultDatabase(), null, (db, sess) ->
-                    db.createCollection(sess, (String) proposedType.get("name"), createOptions)).ignoreElements().andThen(
+            return usingSession(finalDbName, null, (db, sess) ->
+                    db.createCollection(sess, finalName, createOptions)).ignoreElements().andThen(
                 proposedType.containsKey("indexes") ?
-                    this.usingSession(config.obtainDefaultDatabase(), null, (db, sess) -> {
+                    this.usingSession(finalDbName, null, (db, sess) -> {
                         MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
                         //noinspection unchecked
                         return Flowable.fromIterable((List<Map<String, Object>>) proposedType.get("indexes")).flatMap(index ->
@@ -151,8 +170,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             ).doOnComplete(() -> {
                 // track the database for collection in the storage name of the proposed type. use : as a separator
                 // as it is not a valid character in a collection name or vantiq type name
-                proposedType.put("storageName", buildStorageName(config.obtainDefaultDatabase(),
-                        (String)proposedType.get("name")));
+                proposedType.put("storageName", buildStorageName(finalDbName, finalName));
                 
                 // set up the _id property in the proposed type
                 //noinspection unchecked
@@ -161,8 +179,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             }).onErrorResumeNext(t -> {
                 // if the collection already exists, we're good
                 if (t.getMessage().contains("already exists")) {
-                    proposedType.put("storageName", buildStorageName(config.obtainDefaultDatabase(),
-                            (String)proposedType.get("name")));
+                    proposedType.put("storageName", buildStorageName(finalDbName, finalName));
                     return Completable.complete();
                 } else {
                     return Completable.error(t);
@@ -173,12 +190,12 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             List<Map<String, Object>> delete = new ArrayList<>();
             List<Map<String, Object>> add = new ArrayList<>();
             analyzeIndexes(existingType, proposedType, delete, add);
-            return usingSession(config.obtainDefaultDatabase(), null, (db, sess) -> {
-                MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
+            return usingSession(finalDbName, null, (db, sess) -> {
+                MongoCollection<Document> collection = db.getCollection(finalName);
                 Publisher<Document> sizeChange = Flowable.empty();
                 if (proposedType.containsKey("maxStorage") && proposedType.get("maxStorage") != existingType.get("maxStorage")) {
                     // change the size of the collection, currently hit permission problems, but it should work
-                    sizeChange = db.runCommand(new Document("collMod", proposedType.get("name"))
+                    sizeChange = db.runCommand(new Document("collMod", finalName)
                             .append("cappedSize", proposedType.get("maxStorage")));
                 }
                 return Flowable.concat(
