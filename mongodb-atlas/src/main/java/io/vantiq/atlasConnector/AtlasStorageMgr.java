@@ -4,12 +4,15 @@ import static com.mongodb.client.model.Projections.exclude;
 import static com.mongodb.client.model.Projections.include;
 import static io.vantiq.svcconnector.SvcConnectorServer.getVertx;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.RemovalListener;
 import com.google.common.collect.Lists;
 import com.mongodb.client.model.CountOptions;
 import com.mongodb.client.model.CreateCollectionOptions;
 import com.mongodb.client.model.IndexOptions;
 import com.mongodb.client.model.InsertManyOptions;
 import com.mongodb.client.model.UpdateOptions;
+import com.mongodb.reactivestreams.client.ClientSession;
 import com.mongodb.reactivestreams.client.FindPublisher;
 import com.mongodb.reactivestreams.client.MongoClient;
 import com.mongodb.reactivestreams.client.MongoCollection;
@@ -22,8 +25,11 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vantiq.svcconnector.InstanceConfigUtils;
 import io.vantiq.svcconnector.VantiqStorageManager;
+import io.vantiq.util.CacheIfNotEmptyOrError;
+import io.vantiq.util.VertxWideData;
 import io.vertx.rxjava3.ContextScheduler;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
 import org.reactivestreams.Publisher;
@@ -35,11 +41,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -57,12 +61,32 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     
     Connection connection;
     InstanceConfigUtils config = new InstanceConfigUtils();
-    ConcurrentMap<String, Single<MongoDatabase>> sessions = new ConcurrentHashMap<>();
+    Cache<String, Single<ImmutablePair<MongoDatabase, ClientSession>>> sessions;
+    Cache<String, Single<ClientSession>> transactions;
     volatile Scheduler rxScheduler = null;
     
     @Override
     public Completable initialize() {
         rxScheduler = new ContextScheduler(getVertx().getOrCreateContext(), false);
+        RemovalListener<String, Single<ImmutablePair<MongoDatabase,ClientSession>>> sessDbRemovalListener =
+                notification -> {
+            Single<ImmutablePair<MongoDatabase, ClientSession>> value = notification.getValue();
+            if (notification.wasEvicted() && value != null) {
+                value.doOnSuccess(sessionDb -> sessionDb.getRight().close()).subscribe();
+            }
+        };
+        sessions = VertxWideData.getVertxWideCache(getVertx(), this.getClass().getName() + ".sessions",
+                "expireAfterAccess=30m", null, sessDbRemovalListener, null);
+        
+        RemovalListener<String, Single<ClientSession>> sessionRemovalListener = notification -> {
+            Single<ClientSession> value = notification.getValue();
+            if (notification.wasEvicted() && value != null) {
+                value.doOnSuccess(ClientSession::close).subscribe();
+            }
+        };
+        transactions = VertxWideData.getVertxWideCache(getVertx(), this.getClass().getName() + ".transactions",
+                "expireAfterAccess=15m", null, sessionRemovalListener, null);
+        
         config.loadServerConfig();
         connection = new Connection();
         // get a connection and run a ping command
@@ -109,26 +133,44 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             }
             capped = true;
         }
+        // puzzle out the database and collection names
+        String dbName = config.obtainDefaultDatabase();
+        Map<String, Object> type = existingType != null ? existingType : proposedType;
+        String collectionName = (String)type.get("name");
+        if (type.containsKey("storageName")&& type.get("storageName") instanceof String) {
+            String[] parts = ((String)type.get("storageName")).split(":");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException(
+                        "MongoDB Atlas type storage name must have the format: <database>:<collection>");
+            }
+            dbName = parts[0];
+            collectionName = parts[1];
+        }
+        if (dbName == null) {
+            throw new IllegalStateException(
+                    "No storage name specified for MongoDB Atlas collection and no default database was configured");
+        }
+        String finalName = collectionName;
+        String finalDbName = dbName;
         if (existingType == null) {
             CreateCollectionOptions createOptions = new CreateCollectionOptions()
                     .capped(capped)
                     .sizeInBytes(cappedSize)
                     .maxDocuments(maxDocs);
-            return usingSession(config.obtainDefaultDatabase(), db ->
-                    db.createCollection((String) proposedType.get("name"), createOptions)).ignoreElements().andThen(
+            return usingSession(finalDbName, null, (db, sess) ->
+                    db.createCollection(sess, finalName, createOptions)).ignoreElements().andThen(
                 proposedType.containsKey("indexes") ?
-                    this.usingSession(config.obtainDefaultDatabase(), db -> {
+                    this.usingSession(finalDbName, null, (db, sess) -> {
                         MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
                         //noinspection unchecked
                         return Flowable.fromIterable((List<Map<String, Object>>) proposedType.get("indexes")).flatMap(index ->
-                            createIndex(collection, index)
+                            createIndex(collection, sess, index)
                         );
                     }).ignoreElements() : Completable.complete()
             ).doOnComplete(() -> {
                 // track the database for collection in the storage name of the proposed type. use : as a separator
                 // as it is not a valid character in a collection name or vantiq type name
-                proposedType.put("storageName", buildStorageName(config.obtainDefaultDatabase(),
-                        (String)proposedType.get("name")));
+                proposedType.put("storageName", buildStorageName(finalDbName, finalName));
                 
                 // set up the _id property in the proposed type
                 //noinspection unchecked
@@ -137,8 +179,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             }).onErrorResumeNext(t -> {
                 // if the collection already exists, we're good
                 if (t.getMessage().contains("already exists")) {
-                    proposedType.put("storageName", buildStorageName(config.obtainDefaultDatabase(),
-                            (String)proposedType.get("name")));
+                    proposedType.put("storageName", buildStorageName(finalDbName, finalName));
                     return Completable.complete();
                 } else {
                     return Completable.error(t);
@@ -149,20 +190,20 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             List<Map<String, Object>> delete = new ArrayList<>();
             List<Map<String, Object>> add = new ArrayList<>();
             analyzeIndexes(existingType, proposedType, delete, add);
-            return usingSession(config.obtainDefaultDatabase(), db -> {
-                MongoCollection<Document> collection = db.getCollection((String) proposedType.get("name"));
+            return usingSession(finalDbName, null, (db, sess) -> {
+                MongoCollection<Document> collection = db.getCollection(finalName);
                 Publisher<Document> sizeChange = Flowable.empty();
                 if (proposedType.containsKey("maxStorage") && proposedType.get("maxStorage") != existingType.get("maxStorage")) {
                     // change the size of the collection, currently hit permission problems, but it should work
-                    sizeChange = db.runCommand(new Document("collMod", proposedType.get("name"))
+                    sizeChange = db.runCommand(new Document("collMod", finalName)
                             .append("cappedSize", proposedType.get("maxStorage")));
                 }
                 return Flowable.concat(
                     sizeChange,
                     // delete indexes that are no longer in the proposed type
-                    Flowable.fromIterable(delete).flatMap(index -> collection.dropIndex(computeIndexKeySet(index))),
+                    Flowable.fromIterable(delete).flatMap(index -> collection.dropIndex(sess, computeIndexKeySet(index))),
                     // add indexes that are in the proposed type but not in the existing type
-                    Flowable.fromIterable(add).flatMap(addIndex -> createIndex(collection, addIndex))
+                    Flowable.fromIterable(add).flatMap(addIndex -> createIndex(collection, sess, addIndex))
                 );
             }).ignoreElements().andThen(Single.just(proposedType));
         }
@@ -177,10 +218,12 @@ public class AtlasStorageMgr implements VantiqStorageManager {
      */
     @Override
     public Completable typeDefinitionDeleted(Map<String, Object> type, Map<String, Object> options) {
-        return collectionFromStorageName((String)type.get("storageName"), MongoCollection::drop).ignoreElements();
+        return collectionFromStorageName((String)type.get("storageName"), options, MongoCollection::drop)
+                .ignoreElements();
     }
 
-    private Publisher<String> createIndex(MongoCollection<Document> collection, Map<String, Object> index) {
+    private Publisher<String> createIndex(MongoCollection<Document> collection, ClientSession session,
+                                          Map<String, Object> index) {
         //noinspection unchecked
         Map<String,Object> options = (Map<String,Object>)index.get("options");
         if (options == null) {
@@ -198,7 +241,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         if (options.containsKey("expireAfterSeconds")) {
             idxOptions.expireAfter((Long)options.get("expireAfterSeconds"), TimeUnit.SECONDS);
         }
-        return collection.createIndex(computeIndexKeySet(index), idxOptions);
+        return collection.createIndex(session, computeIndexKeySet(index), idxOptions);
     }
     
     private static Map<String, Object> createIdProperty() {
@@ -266,7 +309,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     
     @Override
     public Single<Map<String, Object>> insert(String storageName, Map<String, Object> storageManagerReference,
-                                              Map<String, Object> values) {
+                                              Map<String, Object> values, Map<String, Object> options) {
         Document doc = new Document(values);
         if (doc.containsKey("_id") && !(doc.get("_id") instanceof ObjectId)) {
             if (!(doc.get("_id") instanceof String)) {
@@ -282,9 +325,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             }
             doc.append("_id", id);
         }
-        return collectionFromStorageName(storageName, collection -> collection.insertOne(doc))
-                .firstOrError()
-                .map(insertOne -> externalizeId(doc));
+        return collectionFromStorageName(storageName, options, (collection, session) ->
+                collection.insertOne(session, doc)).firstOrError().map(insertOne -> externalizeId(doc));
     }
 
     static Map<String, Object> externalizeId(Map<String, Object> obj) {
@@ -296,16 +338,17 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     
     @Override
     public Flowable<Map<String, Object>>
-    insertMany(String storageName, Map<String, Object> storageManagerReference,List<Map<String, Object>> values) {
+    insertMany(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> values,
+               Map<String, Object> options) {
         if (values.isEmpty()) {
             return Flowable.empty();
         }
         List<Document> docs = new ArrayList<>();
         values.forEach(value -> docs.add(new Document(value).append("_id", new ObjectId())));
 
-        return collectionFromStorageName(storageName, collection -> {
+        return collectionFromStorageName(storageName, options, (collection, session) -> {
             InsertManyOptions insertOpts = new InsertManyOptions().ordered(false);
-            return collection.insertMany(docs, insertOpts);
+            return collection.insertMany(session, docs, insertOpts);
         }).flatMap(result -> Flowable.fromIterable(docs))
           .map(AtlasStorageMgr::externalizeId);
     }
@@ -314,14 +357,14 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     @Override
     public Maybe<Map<String, Object>>
     update(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> values,
-           Map<String, Object> qual) {
+           Map<String, Object> qual, Map<String, Object> options) {
         
         Map<String, Object> unsetVals = values.containsKey("$unset") ?
                 (Map<String, Object>)values.remove("$unset") : new HashMap<>();
         Map<String, Object> setVals = values.containsKey("$set") ?
                 (Map<String, Object>)values.remove("$set") : values;
 
-        return collectionFromStorageName(storageName, collection -> {
+        return collectionFromStorageName(storageName, options, (collection, session) -> {
             Document cleanQual = new Document((Map<String, Object>)cleanQualMap(qual));
             Document updateVals = new Document();
             if (!setVals.isEmpty()) {
@@ -335,7 +378,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 updateVals.put("$unset", unsetVals);
             }
             UpdateOptions updateOptions = new UpdateOptions().upsert(false);
-            return collection.updateMany(cleanQual, updateVals, updateOptions);
+            return collection.updateMany(session, cleanQual, updateVals, updateOptions);
         }).singleElement().flatMap(updateResult -> {
             if (updateResult.getModifiedCount() == 0) {
                 return Maybe.empty();
@@ -360,10 +403,10 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         if (options.containsKey("skip")) {
             countOptions.skip((int)options.get("skip"));
         }
-        return collectionFromStorageName(storageName, collection -> {
+        return collectionFromStorageName(storageName, options, (collection, session) -> {
             //noinspection unchecked
             Document query = new Document((Map<String, Object>)cleanQualMap(qual));
-            return collection.countDocuments(query, countOptions);
+            return collection.countDocuments(session, query, countOptions);
         }).map(Math::toIntExact).firstOrError();
     }
 
@@ -432,7 +475,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
      * @param qual the qualification
      */
     private FindPublisher<Document>
-    buildFind(MongoCollection<Document> collection, List<String> props, Map<String, Object> qual,
+    buildFind(MongoCollection<Document> collection, ClientSession session, List<String> props, Map<String, Object> qual,
               Map<String, Object> options) {
         // No options means empty map
         if (options == null) {
@@ -441,7 +484,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
         // Create cursor over find
         //noinspection unchecked,rawtypes
-        FindPublisher<Document> crsr = collection.find(new Document((Map)cleanQualMap(qual)));
+        FindPublisher<Document> crsr = collection.find(session, new Document((Map)cleanQualMap(qual)));
 
         // Set the max query time allowed
         long maxTime = QUERY_TIMEOUT;
@@ -478,8 +521,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     select(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties, Map<String,
            Object> qual, Map<String, Object> options) {
 
-        return collectionFromStorageName(storageName, collection ->
-            Flowable.fromPublisher(buildFind(collection, new ArrayList<>(properties.keySet()), qual, options))
+        return collectionFromStorageName(storageName, options, (collection, session) ->
+            Flowable.fromPublisher(buildFind(collection, session, new ArrayList<>(properties.keySet()), qual, options))
                 .map(AtlasStorageMgr::externalizeId));
     }
 
@@ -490,13 +533,26 @@ public class AtlasStorageMgr implements VantiqStorageManager {
      * @param cmdFunction function to execute with the session
      * @param <T> typically a Map, but generally the type of the observable expected
      */
-    <T> Flowable<T> usingSession(String databaseName, Function<MongoDatabase, Publisher<T>> cmdFunction) {
-        Single<MongoDatabase> sessionObs = sessions.computeIfAbsent(databaseName, name -> {
+    <T> Flowable<T> usingSession(String databaseName, String xid, BiFunction<MongoDatabase, ClientSession,
+                                 Publisher<T>> cmdFunction) {
+        Single<ImmutablePair<MongoDatabase, ClientSession>> sessionDbObs;
+        sessionDbObs = sessions.asMap().computeIfAbsent(databaseName, name -> {
             Single<MongoClient> clientObs = connection.connect(config);
-            return clientObs.map(client -> client.getDatabase(databaseName)).cache();
+            return clientObs.flatMapPublisher(client -> {
+                Flowable<ClientSession> sessionObs = Flowable.fromPublisher(client.startSession());
+                return sessionObs.map(session -> new ImmutablePair<>(client.getDatabase(databaseName), session));
+            }).compose(new CacheIfNotEmptyOrError<>()).firstOrError();
         });
+        if (xid != null) {
+            // if we are in a transaction substitute its session to use instead of the default from above
+            sessionDbObs = sessionDbObs.flatMap(sessionDb -> transactions.asMap().getOrDefault(xid,
+                    Single.error(new Exception("No transaction found for id " + xid))).map(session ->
+                new ImmutablePair<>(sessionDb.getLeft(), session)
+            ));
+        }
+        
         AtomicLong start = new AtomicLong();
-        return sessionObs.flatMapPublisher(cmdFunction::apply)
+        return sessionDbObs.flatMapPublisher(sessionDb -> cmdFunction.apply(sessionDb.getLeft(), sessionDb.getRight()))
                 .doOnSubscribe(s ->start.set(System.nanoTime()))
                 .observeOn(rxScheduler == null ? Schedulers.trampoline() : rxScheduler)
                 .doOnComplete(() -> {
@@ -511,11 +567,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
     
     <T> Flowable<T>
-    collectionFromStorageName(String storageName, Function<MongoCollection<Document>, Publisher<T>> cmdFunction) {
+    collectionFromStorageName(String storageName, Map<String, Object> options, BiFunction<MongoCollection<Document>,
+                              ClientSession, Publisher<T>> cmdFunction) {
         String[] parts = storageName.split(":");
         String databaseName = parts.length < 2 ? config.obtainDefaultDatabase(): parts[0];
         String collectionName = parts.length < 2 ? parts[0]: parts[1];
-        return usingSession(databaseName, db -> cmdFunction.apply(db.getCollection(collectionName)));
+        return usingSession(databaseName, (String)options.get("transaction"), (db, session) ->
+                cmdFunction.apply(db.getCollection(collectionName), session));
     }
     
     @Override
@@ -537,21 +595,67 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
     @Override
     public Single<Integer>
-    delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual) {
+    delete(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> qual,
+           Map<String, Object> options) {
         //noinspection unchecked
-        return collectionFromStorageName(storageName, dbCol ->
-            dbCol.deleteMany(new Document((Map<String, Object>)cleanQualMap(qual)))
+        return collectionFromStorageName(storageName, options, (dbCol, sess) ->
+            dbCol.deleteMany(sess, new Document((Map<String, Object>)cleanQualMap(qual)))
         ).singleOrError().map(dr ->
             Math.toIntExact(dr.getDeletedCount())
         );
     }
 
     @Override
-    public Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference, List<Map<String, Object>> pipeline, Map<String, Object> options) {
-        return this.collectionFromStorageName(storageName, collection -> {
-            List<Document> mongoPipeline = pipeline.stream().map(Document::new).collect(Collectors.toList());
-            return collection.aggregate(mongoPipeline).maxTime(QUERY_TIMEOUT, QUERY_TIMEOUT_TIMEUNIT);
-        }).map(AtlasStorageMgr::externalizeId);
+    public Completable
+    startTransaction(String vantiqTransactionId, Map<String, Object> options) {
+        return Completable.fromAction(() ->
+            transactions.asMap().computeIfAbsent(vantiqTransactionId, id -> {
+                Single<MongoClient> clientObs = connection.connect(config);
+                return clientObs.flatMapPublisher(MongoClient::startSession).doOnNext(ClientSession::startTransaction)
+                        .compose(new CacheIfNotEmptyOrError<>()).switchIfEmpty(
+                    // if we get here, startSession returned an empty publisher, should  never happen, but ...
+                    Flowable.error(new Exception("Failed to create a session in which to start a transaction"))
+                ).firstOrError().doOnSuccess(session ->
+                    log.debug("transactions started in session {} with number {}",
+                            session.getServerSession().getIdentifier(),
+                            session.getServerSession().getTransactionNumber())
+                );
+            })
+        );
     }
 
+    @Override
+    public Completable commitTransaction(String vantiqTransactionId, Map<String, Object> options) {
+        Single<ClientSession> sessionObs = transactions.asMap().remove(vantiqTransactionId);
+        if (sessionObs == null) {
+            return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
+        }
+        return sessionObs.flatMapPublisher(session ->
+                Flowable.fromPublisher(session.commitTransaction()).doOnComplete(() ->
+                    log.debug("transaction {} committed", vantiqTransactionId)
+                ).doOnError(t ->
+                    log.debug("transaction {} failed to commit with error: {}", vantiqTransactionId, t.getMessage())
+                ).doOnComplete(session::close)
+        ).ignoreElements();
+    }
+
+    @Override
+    public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> options) {
+        Single<ClientSession> sessionObs = transactions.asMap().remove(vantiqTransactionId);
+        if (sessionObs == null) {
+            return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
+        }
+        return sessionObs.flatMapPublisher(session ->
+                Flowable.fromPublisher(session.abortTransaction()).doOnComplete(session::close)
+        ).ignoreElements();
+    }
+
+    @Override
+    public Flowable<Map<String, Object>> aggregate(String storageName, Map<String, Object> storageManagerReference,
+                                                   List<Map<String, Object>> pipeline, Map<String, Object> options) {
+        return this.collectionFromStorageName(storageName, options, (collection, session) -> {
+            List<Document> mongoPipeline = pipeline.stream().map(Document::new).collect(Collectors.toList());
+            return collection.aggregate(session, mongoPipeline).maxTime(QUERY_TIMEOUT, QUERY_TIMEOUT_TIMEUNIT);
+        }).map(AtlasStorageMgr::externalizeId);
+    }
 }

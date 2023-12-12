@@ -157,18 +157,21 @@ public class ConnectorListener {
                 case "update":
                     result = storageManager.update((String) msg.params.get("storageName"),
                         (Map<String, Object>) msg.params.get("storageManagerReference"),
-                        (Map<String, Object>) msg.params.get("values"), (Map<String, Object>) msg.params.get("qual"))
+                        (Map<String, Object>) msg.params.get("values"), (Map<String, Object>) msg.params.get("qual"),
+                        (Map<String, Object>) msg.params.get("options"))
                             .toFlowable();
                     break;
                 case "insertMany":
                     result = storageManager.insertMany((String) msg.params.get("storageName"),
                         (Map<String, Object>) msg.params.get("storageManagerReference"),
-                        (List<Map<String, Object>>) msg.params.get("values"));
+                        (List<Map<String, Object>>) msg.params.get("values"),
+                        (Map<String, Object>)msg.params.get("options"));
                     break;
                 case "insert":
                     result = storageManager.insert((String) msg.params.get("storageName"),
                         (Map<String, Object>) msg.params.get("storageManagerReference"),
-                        (Map<String, Object>) msg.params.get("values")).toFlowable();
+                        (Map<String, Object>) msg.params.get("values"),
+                        (Map<String, Object>) msg.params.get("options")).toFlowable();
                     break;
                 case "count":
                     result = storageManager.count((String) msg.params.get("storageName"),
@@ -198,7 +201,7 @@ public class ConnectorListener {
                 case "delete":
                     result = storageManager.delete((String) msg.params.get("storageName"),
                         (Map<String, Object>) msg.params.get("storageManagerReference"),
-                        (Map<String, Object>) msg.params.get("qual"))
+                        (Map<String, Object>) msg.params.get("qual"), (Map<String, Object>) msg.params.get("options"))
                             .toFlowable();
                     break;
                 case "getTypeRestrictions":
@@ -227,6 +230,24 @@ public class ConnectorListener {
                                 (Map<String, Object>) msg.params.get("options")
                         ).toFlowable();
                     }
+                    break;
+                case "startTransaction":
+                    result = storageManager.startTransaction(
+                        (String)msg.params.get("vantiqTransactionId"),
+                        (Map<String, Object>) msg.params.get("options")
+                    ).toFlowable();
+                    break;
+                case "commitTransaction":
+                    result = storageManager.commitTransaction(
+                            (String)msg.params.get("vantiqTransactionId"),
+                            (Map<String, Object>) msg.params.get("options")
+                    ).toFlowable();
+                    break;
+                case "abortTransaction":
+                    result = storageManager.abortTransaction(
+                            (String)msg.params.get("vantiqTransactionId"),
+                            (Map<String, Object>) msg.params.get("options")
+                    ).toFlowable();
                     break;
                 default:
                     result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
