@@ -516,7 +516,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
      * @param cmdFunction function to execute with the session
      * @param <T> typically a Map, but generally the type of the observable expected
      */
-    <T> Flowable<T> usingSession(String databaseName, String xid, BiFunction<MongoDatabase, ClientSession, Publisher<T>> cmdFunction) {
+    <T> Flowable<T> usingSession(String databaseName, String xid, BiFunction<MongoDatabase, ClientSession,
+                                 Publisher<T>> cmdFunction) {
         Single<ImmutablePair<MongoDatabase, ClientSession>> sessionDbObs;
         sessionDbObs = sessions.asMap().computeIfAbsent(databaseName, name -> {
             Single<MongoClient> clientObs = connection.connect(config);
@@ -549,7 +550,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     }
     
     <T> Flowable<T>
-    collectionFromStorageName(String storageName, Map<String, Object> options, BiFunction<MongoCollection<Document>, ClientSession, Publisher<T>> cmdFunction) {
+    collectionFromStorageName(String storageName, Map<String, Object> options, BiFunction<MongoCollection<Document>,
+                              ClientSession, Publisher<T>> cmdFunction) {
         String[] parts = storageName.split(":");
         String databaseName = parts.length < 2 ? config.obtainDefaultDatabase(): parts[0];
         String collectionName = parts.length < 2 ? parts[0]: parts[1];

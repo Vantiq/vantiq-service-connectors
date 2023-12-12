@@ -17,9 +17,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
- * Atomic, shareable object reference.<br/>
- *
- * Created by sfitts on 9/5/2015.
+ * Atomic, shareable object reference.
+ * <p/>
+ * Copyright (c) 2023 Vantiq, Inc.
+ * <p/>
+ * All rights reserved.
  */
 public class VertxWideData<T> extends AtomicReference<T> implements Shareable {
     public static final String GLOBALS_MAP_NAME = "io.vantiq.vertx.globalData";
