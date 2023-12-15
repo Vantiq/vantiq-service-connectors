@@ -32,7 +32,7 @@ public class TestMainVerticle {
         DeploymentOptions deployOptions = new DeploymentOptions()
                 .setInstances(1)
                 .setConfig(verticleConfig);
-        Supplier<Verticle> verticleSupplier = RequestProcessingVerticle::new;
+        Supplier<Verticle> verticleSupplier = WebSocketRequestVerticle::new;
         vertx.deployVerticle(verticleSupplier, deployOptions, ar -> {
             if (ar.succeeded()) {
                 testContext.completeNow();
