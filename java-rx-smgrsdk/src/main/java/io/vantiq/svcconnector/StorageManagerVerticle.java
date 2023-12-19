@@ -3,7 +3,7 @@ package io.vantiq.svcconnector;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;
-import io.vantiq.util.StorageManagerError;
+import io.vantiq.utils.StorageManagerError;
 import io.vertx.core.eventbus.DeliveryOptions;
 import io.vertx.rxjava3.core.AbstractVerticle;
 import io.vertx.rxjava3.core.eventbus.MessageConsumer;
@@ -24,7 +24,7 @@ import java.util.Map;
 @Slf4j
 public class StorageManagerVerticle extends AbstractVerticle {
     public static final String STORAGE_MANAGER_ADDRESS = "storageManager";
-    static VantiqStorageManager storageManager;
+    VantiqStorageManager storageManager;
     private Disposable activeMsgProcessor;
 
     @Override
@@ -54,18 +54,18 @@ public class StorageManagerVerticle extends AbstractVerticle {
                 return v;
             }).doOnError(t -> {
                 log.debug("Error processing message", t);
-                mp.deliveryOptions(new DeliveryOptions().addHeader("EOF_HEADER", "true"));
                 mp.write(new StorageManagerError("io.vantiq.storage.manager.error", t.getMessage()));
-            }).doOnComplete(() -> {
+            }).onErrorComplete().doOnComplete(() -> {
                 log.debug("Terminating storage manager response for {} on event bus", msg.body().procName);
                 mp.deliveryOptions(new DeliveryOptions().addHeader("EOF_HEADER", "true"));
                 mp.write(null);
             });
         }).subscribe(
             m -> log.debug("received storage manager request {}", m),
-            e -> log.warn("Error processing message", e)
+            e -> log.warn("Error processing message", e),
+            () -> log.warn("storage manager request processing terminated")
         );
-        return consumer.completionHandler().andThen(storageManager.initialize());
+        return consumer.completionHandler().andThen(storageManager.initialize(vertx));
     }
 
     @Override

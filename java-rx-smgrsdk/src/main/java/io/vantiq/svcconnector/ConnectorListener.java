@@ -7,10 +7,10 @@ import static io.vantiq.svcconnector.SvcConnSvrMessage.WS_PONG;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.reactivex.rxjava3.core.Flowable;
-import io.vantiq.util.LocalMessageSender;
-import io.vantiq.util.StorageManagerError;
+import io.vantiq.utils.LocalMessageSender;
 import io.vertx.rxjava3.core.Vertx;
 import io.vertx.rxjava3.core.buffer.Buffer;
+import io.vertx.rxjava3.core.eventbus.Message;
 import io.vertx.rxjava3.ext.web.handler.sockjs.SockJSSocket;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -83,13 +83,7 @@ public class ConnectorListener {
             log.warn("Unable to read web socket message: ", e);
             return;
         }
-        Flowable<?> result = dispatcher.sendMessage(STORAGE_MANAGER_ADDRESS, clientMsg, msg -> {
-            if (msg.body() instanceof StorageManagerError) {
-                throw new RuntimeException(((StorageManagerError) msg.body()).getErrorMessage());
-            } else {
-                return msg.body();
-            }
-        });
+        Flowable<?> result = dispatcher.sendMessage(STORAGE_MANAGER_ADDRESS, clientMsg, Message::body);
         if (webSocket.writeQueueFull()) {
             queuedResults.add(new ImmutablePair<>(clientMsg.requestId, result));
             return;
@@ -98,11 +92,10 @@ public class ConnectorListener {
     }
 
     private void pumpResult(String requestId, Flowable<?> result) {
-        SvcConnSvrResponse response = new SvcConnSvrResponse(requestId);
-        //result.subscribeOn(Schedulers.computation()).subscribe(
         //noinspection ResultOfMethodCallIgnored
         result.subscribe(
             next -> {
+                SvcConnSvrResponse response = new SvcConnSvrResponse(requestId);
                 response.result = next;
                 response.isEOF = false;
                 response.errorMsg = null;
@@ -110,15 +103,16 @@ public class ConnectorListener {
                 writeResponse(response);
             },
             error -> {
+                SvcConnSvrResponse response = new SvcConnSvrResponse(requestId);
                 response.result = null;
                 response.errorMsg = error.getMessage() == null ? error.toString() : error.getMessage();
                 log.trace("In pumpResult, writing error: {}", response.errorMsg);
                 writeResponse(response);
             },
             () -> {
+                SvcConnSvrResponse response = new SvcConnSvrResponse(requestId);
                 response.errorMsg = null;
                 response.result = null;
-                response.isEOF = true;
                 writeResponse(response);
             }
         );

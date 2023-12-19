@@ -1,22 +1,24 @@
-package io.vantiq.util;
+package io.vantiq.utils;
 
 /*
+ * <p>
  * Copyright (c) 2023 Vantiq, Inc.
  * <p>
  * All rights reserved.
  */
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import io.vantiq.svcconnector.SvcConnSvrMessage;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.eventbus.MessageCodec;
 import io.vertx.core.json.jackson.DatabindCodec;
 
 import java.io.IOException;
 
-public class StorageManagerErrorCodec implements MessageCodec<StorageManagerError, StorageManagerError> {
+public class SvcConnSvcMsgCodec implements MessageCodec<SvcConnSvrMessage, SvcConnSvrMessage> {
 
     @Override
-    public void encodeToWire(Buffer buffer, StorageManagerError restMessage) {
+    public void encodeToWire(Buffer buffer, SvcConnSvrMessage restMessage) {
         byte[] encoded;
         try {
             encoded = DatabindCodec.mapper().writeValueAsBytes(restMessage);
@@ -29,25 +31,25 @@ public class StorageManagerErrorCodec implements MessageCodec<StorageManagerErro
     }
 
     @Override
-    public StorageManagerError decodeFromWire(int pos, Buffer buffer) {
+    public SvcConnSvrMessage decodeFromWire(int pos, Buffer buffer) {
         int length = buffer.getInt(pos);
         pos += 4;
         byte[] encoded = buffer.getBytes(pos, pos + length);
         try {
-            return DatabindCodec.mapper().readValue(encoded, StorageManagerError.class);
+            return DatabindCodec.mapper().readValue(encoded, SvcConnSvrMessage.class);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     @Override
-    public StorageManagerError transform(StorageManagerError restMessage) {
+    public SvcConnSvrMessage transform(SvcConnSvrMessage restMessage) {
         return restMessage;
     }
 
     @Override
     public String name() {
-        return StorageManagerError.class.getName();
+        return SvcConnSvrMessage.class.getName();
     }
 
     @Override

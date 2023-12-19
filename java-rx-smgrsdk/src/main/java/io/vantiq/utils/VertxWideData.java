@@ -1,15 +1,14 @@
-package io.vantiq.util;
+package io.vantiq.utils;
 
 import com.google.common.base.Ticker;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.Weigher;
-import io.vertx.core.Vertx;
-import io.vertx.core.shareddata.LocalMap;
 import io.vertx.core.shareddata.Shareable;
+import io.vertx.rxjava3.core.Vertx;
+import io.vertx.rxjava3.core.shareddata.LocalMap;
 
-import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -68,6 +67,7 @@ public class VertxWideData<T> extends AtomicReference<T> implements Shareable {
                 builder.ticker(ticker);
             }
             if (removalListener != null) {
+                //noinspection ResultOfMethodCallIgnored
                 builder.removalListener(removalListener);
             }
             if (weigher != null) {
@@ -88,9 +88,8 @@ public class VertxWideData<T> extends AtomicReference<T> implements Shareable {
      */
     public static <T> T getVertxWideInstance(Vertx vertx, String instanceName, Supplier<T> instanceSupplier) {
         LocalMap<String, VertxWideData<T>> globalsMap = vertx.sharedData().getLocalMap(GLOBALS_MAP_NAME);
-        VertxWideData<T> instanceGlobal = globalsMap.computeIfAbsent(instanceName, key ->
-            new VertxWideData<>(instanceSupplier.get())
-        );
+        globalsMap.putIfAbsent(instanceName, new VertxWideData<>(instanceSupplier.get()));
+        VertxWideData<T> instanceGlobal = globalsMap.get(instanceName);
         T instance = instanceGlobal.get();
         Objects.requireNonNull(instance, "Supplier for vertx wide instance ${instanceName} returned null.");
         return instance;
@@ -121,22 +120,5 @@ public class VertxWideData<T> extends AtomicReference<T> implements Shareable {
     static void removeVertxWideData(Vertx vertx, String dataName) {
         LocalMap<String, VertxWideData<?>> globalsMap = vertx.sharedData().getLocalMap(GLOBALS_MAP_NAME);
         globalsMap.remove(dataName);
-    }
-
-    /**
-     * Remove all Vert.x wide instances for the given Vert.x.
-     *
-     * @param vertx current vertx
-     */
-    @SuppressWarnings("unused")
-    static void clearAll(Vertx vertx) {
-        LocalMap<String, VertxWideData<Object>> globalsMap = vertx.sharedData().getLocalMap(GLOBALS_MAP_NAME);
-        globalsMap.forEach( (name, data) -> {
-                Object obj = data.getAndSet(null);
-            if (obj instanceof Collection) {
-                ((Collection<?>)obj).clear();
-            }
-        });
-        globalsMap.clear();
     }
 }

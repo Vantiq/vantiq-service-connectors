@@ -1,10 +1,11 @@
 package io.vantiq.svcconnector;
 
-import io.vantiq.util.StorageManagerError;
-import io.vantiq.util.StorageManagerErrorCodec;
-import io.vantiq.util.SvcConnSvcMsgCodec;
+import io.vantiq.utils.StorageManagerError;
+import io.vantiq.utils.StorageManagerErrorCodec;
+import io.vantiq.utils.SvcConnSvcMsgCodec;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import lombok.extern.slf4j.Slf4j;
 
@@ -21,20 +22,15 @@ import lombok.extern.slf4j.Slf4j;
 public class SvcConnectorServer {
     static Vertx vertx;
     
-    public static Vertx getVertx() {
-        if (vertx == null) {
-            throw new IllegalStateException("Vertx has not been initialized");
-        }
-        return vertx;
-    }
-    
     public void start(SvcConnectorConfig config) {
         System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory");
         
         // convert the config to a JsonObject -- suitable for verticle deployment
         JsonObject verticleConfig = new JsonObject().put("storageManagerClassName", config.getStorageManagerClassName());
         Runtime runtime = Runtime.getRuntime();
-        vertx = Vertx.vertx();
+        // ToDo: will want to adjust some vertx options here (blocked thread checking etc.) when in debug mode.
+        VertxOptions options = new VertxOptions();
+        vertx = Vertx.vertx(options);
         
         // define a couple of codecs, so we can send messages between verticles
         vertx.eventBus().registerDefaultCodec(SvcConnSvrMessage.class, new SvcConnSvcMsgCodec());

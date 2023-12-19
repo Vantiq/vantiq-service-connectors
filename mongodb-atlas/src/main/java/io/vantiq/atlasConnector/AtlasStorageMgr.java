@@ -2,7 +2,6 @@ package io.vantiq.atlasConnector;
 
 import static com.mongodb.client.model.Projections.exclude;
 import static com.mongodb.client.model.Projections.include;
-import static io.vantiq.svcconnector.SvcConnectorServer.getVertx;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
@@ -25,9 +24,11 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vantiq.svcconnector.InstanceConfigUtils;
 import io.vantiq.svcconnector.VantiqStorageManager;
-import io.vantiq.util.CacheIfNotEmptyOrError;
-import io.vantiq.util.VertxWideData;
+import io.vantiq.utils.CacheIfNotEmptyOrError;
+import io.vantiq.utils.VertxWideData;
+import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava3.ContextScheduler;
+import io.vertx.rxjava3.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.Document;
@@ -49,9 +50,9 @@ import java.util.stream.Collectors;
 /**
  * Storage manager for MongoDB Atlas. This storage manager is designed to work with MongoDB Atlas clusters. It
  * supports all the storage manager API calls.
- * <p>
+ * <p/>
  * Copyright (c) 2023 Vantiq, Inc.
- * <p>
+ * <p/>
  * All rights reserved.
  */
 @Slf4j
@@ -66,8 +67,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     volatile Scheduler rxScheduler = null;
     
     @Override
-    public Completable initialize() {
-        rxScheduler = new ContextScheduler(getVertx().getOrCreateContext(), false);
+    public Completable initialize(Vertx vertx) {
+        rxScheduler = new ContextScheduler(vertx.getDelegate().getOrCreateContext(), false);
         RemovalListener<String, Single<ImmutablePair<MongoDatabase,ClientSession>>> sessDbRemovalListener =
                 notification -> {
             Single<ImmutablePair<MongoDatabase, ClientSession>> value = notification.getValue();
@@ -75,7 +76,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 value.doOnSuccess(sessionDb -> sessionDb.getRight().close()).subscribe();
             }
         };
-        sessions = VertxWideData.getVertxWideCache(getVertx(), this.getClass().getName() + ".sessions",
+        sessions = VertxWideData.getVertxWideCache(vertx, this.getClass().getName() + ".sessions",
                 "expireAfterAccess=30m", null, sessDbRemovalListener, null);
         
         RemovalListener<String, Single<ClientSession>> sessionRemovalListener = notification -> {
@@ -84,7 +85,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 value.doOnSuccess(ClientSession::close).subscribe();
             }
         };
-        transactions = VertxWideData.getVertxWideCache(getVertx(), this.getClass().getName() + ".transactions",
+        transactions = VertxWideData.getVertxWideCache(vertx, this.getClass().getName() + ".transactions",
                 "expireAfterAccess=15m", null, sessionRemovalListener, null);
         
         config.loadServerConfig();
@@ -518,8 +519,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
     @Override
     public Flowable<Map<String, Object>>
-    select(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties, Map<String,
-           Object> qual, Map<String, Object> options) {
+    select(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties,
+           Map<String, Object> qual, Map<String, Object> options) {
 
         return collectionFromStorageName(storageName, options, (collection, session) ->
             Flowable.fromPublisher(buildFind(collection, session, new ArrayList<>(properties.keySet()), qual, options))
@@ -569,10 +570,14 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     <T> Flowable<T>
     collectionFromStorageName(String storageName, Map<String, Object> options, BiFunction<MongoCollection<Document>,
                               ClientSession, Publisher<T>> cmdFunction) {
+        if (storageName == null) {
+            throw new IllegalArgumentException("No storage name specified type type");
+        }
         String[] parts = storageName.split(":");
         String databaseName = parts.length < 2 ? config.obtainDefaultDatabase(): parts[0];
         String collectionName = parts.length < 2 ? parts[0]: parts[1];
-        return usingSession(databaseName, (String)options.get("transaction"), (db, session) ->
+        String transaction = options == null ? null : (String)options.get("transaction");
+        return usingSession(databaseName, transaction, (db, session) ->
                 cmdFunction.apply(db.getCollection(collectionName), session));
     }
     
@@ -586,8 +591,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 if (t instanceof IllegalArgumentException) {
                     return Maybe.error(new Exception(
                         MessageFormat.format(
-                            "More than one instance of type: {0} was found.",
-                            Lists.newArrayList(storageName))));
+                            "In selectOne, more than one instance of type: {0} was found for qual {1}.",
+                            storageName, new JsonObject(qual).toString())));
                 }
                 return Maybe.error(t);
             });

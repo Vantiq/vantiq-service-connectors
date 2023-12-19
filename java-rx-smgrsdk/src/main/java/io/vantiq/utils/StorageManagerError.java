@@ -1,4 +1,4 @@
-package io.vantiq.util;
+package io.vantiq.utils;
 
 /*
  * Copyright (c) 2023 Vantiq, Inc.

@@ -1,4 +1,4 @@
-package io.vantiq.util;
+package io.vantiq.utils;
 /*
  * <p>
  * Copyright (c) 2023 Vantiq, Inc.
@@ -22,8 +22,8 @@ import java.util.function.Function;
  * Delegate object used to perform sending of an event bus message and observation of the subsequent reply. Only
  * supports sending/receiving via local EB addresses.
  *
- * <p>
- * Created by jmeredith
+ * <p/>
+ * Created by jmeredith 12/15/23
  */
 @RequiredArgsConstructor
 public class LocalMessageSender {
@@ -45,6 +45,13 @@ public class LocalMessageSender {
                         .addHeader("REPLY_ADDRESS", consumer.address());
                 
                 vertx.eventBus().send(address, msg, options);
+            }).flatMap(reply -> {
+                // ToDo: currently the service connector protocol does not allow for propagating error codes with error
+                //   messages. when that is possible, we can send back any codes we encounter.
+                if (reply.body() instanceof StorageManagerError) {
+                    return Flowable.error(new RuntimeException(((StorageManagerError) reply.body()).getErrorMessage()));
+                }
+                return Flowable.just(reply);
             }).takeWhile(reply -> {
                 // Keep reading data until we're told there is no more.
                 String eofHeader = reply.headers().get("EOF_HEADER");
