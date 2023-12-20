@@ -659,7 +659,7 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
         }
         // 1st observeOn ensures we switch from thread that cached the session, while the 2nd switches from the thread
-        // that mongo the mongodb client calls back on
+        // that the mongodb client calls back on
         return cliSessObs.observeOn(rxScheduler).flatMapPublisher(cliSess ->
             Flowable.fromPublisher(cliSess.getRight().abortTransaction()).observeOn(rxScheduler).doOnComplete(() ->
                 cliSess.getRight().close()
