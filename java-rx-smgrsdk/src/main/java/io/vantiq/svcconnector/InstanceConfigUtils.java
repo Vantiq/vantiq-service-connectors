@@ -48,7 +48,7 @@ public class InstanceConfigUtils {
             val resourceUrl = Resources.getResource(fileName);
             propertyStream = new ByteArrayInputStream(Resources.toByteArray(resourceUrl));
             secrets.load(propertyStream);
-        } catch (IOException ignored) {
+        } catch (IllegalArgumentException | IOException ignored) {
             // Error loading options, continue
         }
         if (propertyStream == null) {
