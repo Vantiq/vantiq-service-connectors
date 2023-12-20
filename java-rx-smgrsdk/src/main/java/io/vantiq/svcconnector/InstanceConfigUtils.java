@@ -43,9 +43,9 @@ public class InstanceConfigUtils {
 
     public Properties loadServerSecrets(String fileName) {
         Properties secrets = new Properties();
-        val resourceUrl = Resources.getResource(fileName);
         ByteArrayInputStream propertyStream = null;
         try {
+            val resourceUrl = Resources.getResource(fileName);
             propertyStream = new ByteArrayInputStream(Resources.toByteArray(resourceUrl));
             secrets.load(propertyStream);
         } catch (IOException ignored) {
