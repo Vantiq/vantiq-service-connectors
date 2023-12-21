@@ -58,6 +58,10 @@ dependencies {
     implementation("org.mongodb:mongodb-driver-reactivestreams:4.9.0")
     implementation("io.reactivex.rxjava3:rxjava:3.1.6")
     implementation("io.vertx:vertx-rx-java3:4.4.1")
+    
+    testImplementation("io.vertx:vertx-junit5:4.4.1")
+    testImplementation("org.junit.jupiter:junit-jupiter:$junitJupiterVersion")
+    testImplementation("com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}")
 }
 
 java {

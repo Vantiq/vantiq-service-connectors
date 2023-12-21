@@ -40,7 +40,7 @@ public class Connection {
             latch.await();
             d.dispose();
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            log.error("Interrupted while waiting for connection to MongoDB Atlas", e);
             System.exit(1);
         }
         conn.close().subscribe();

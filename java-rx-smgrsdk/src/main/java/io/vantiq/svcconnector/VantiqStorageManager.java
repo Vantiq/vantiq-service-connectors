@@ -4,6 +4,7 @@ import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Single;
+import io.vertx.rxjava3.core.Vertx;
 
 import java.util.List;
 import java.util.Map;
@@ -11,16 +12,16 @@ import java.util.Map;
 /**
  * Interface for storage manager service connector implementations. It encapsulates the storage manager API used by
  * the Vantiq server to interact with storage managers.
- * <p>
+ * <p/>
  * Copyright (c) 2023 Vantiq, Inc.
- * <p>
+ * <p/>
  * All rights reserved.
  */
 public interface VantiqStorageManager {
     /**
      * do anything necessary prior to receiving storage manager related requests
      */
-    Completable initialize();
+    Completable initialize(Vertx vertx);
 
     /**
      * What is and is not supported for types managed by this storage manager

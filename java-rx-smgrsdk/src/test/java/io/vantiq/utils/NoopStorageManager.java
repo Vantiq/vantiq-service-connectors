@@ -1,9 +1,11 @@
-package io.vantiq.svcconnector;
+package io.vantiq.utils;
 
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Single;
+import io.vantiq.svcconnector.VantiqStorageManager;
+import io.vertx.rxjava3.core.Vertx;
 
 import java.util.Collections;
 import java.util.List;
@@ -11,15 +13,15 @@ import java.util.Map;
 
 /**
  * a No-Op storage manager for testing, it is referenced by its canonical name in TestMainVerticle
- * <p>
+ * <p/>
  * Copyright (c) 2023 Vantiq, Inc.
- * <p>
+ * <p/>
  * All rights reserved.
  */
 @SuppressWarnings("unused")
 public class NoopStorageManager implements VantiqStorageManager {
     @Override
-    public Completable initialize() {
+    public Completable initialize(Vertx vertx) {
         return Completable.complete();
     }
 

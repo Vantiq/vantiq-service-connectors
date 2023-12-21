@@ -43,12 +43,12 @@ public class InstanceConfigUtils {
 
     public Properties loadServerSecrets(String fileName) {
         Properties secrets = new Properties();
-        val resourceUrl = Resources.getResource(fileName);
         ByteArrayInputStream propertyStream = null;
         try {
+            val resourceUrl = Resources.getResource(fileName);
             propertyStream = new ByteArrayInputStream(Resources.toByteArray(resourceUrl));
             secrets.load(propertyStream);
-        } catch (IOException ignored) {
+        } catch (IllegalArgumentException | IOException ignored) {
             // Error loading options, continue
         }
         if (propertyStream == null) {
@@ -150,6 +150,7 @@ public class InstanceConfigUtils {
      *
      * @return An Integer for the port value provided in the server.config file, or null if non was specified.
      */
+    @SuppressWarnings("unused")
     public Integer obtainTCPProbePort() {
         Properties localServerConfigProps;
 
@@ -176,6 +177,7 @@ public class InstanceConfigUtils {
     /**
      * Method used to clear the local copy of server.config properties
      */
+    @SuppressWarnings("unused")
     public void clearServerConfigProperties() {
         synchronized (this) {
             serverConfigProperties = null;

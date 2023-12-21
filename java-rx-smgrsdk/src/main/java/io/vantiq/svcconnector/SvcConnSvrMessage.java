@@ -9,7 +9,7 @@ import java.util.Map;
  * <p>
  * All rights reserved.
  */
-class SvcConnSvrMessage {
+public class SvcConnSvrMessage {
   public static final String WS_PING = "ping";
   public static final String WS_PONG = "pong";
 

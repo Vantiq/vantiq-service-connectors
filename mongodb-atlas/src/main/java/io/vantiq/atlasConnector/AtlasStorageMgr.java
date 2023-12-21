@@ -2,7 +2,6 @@ package io.vantiq.atlasConnector;
 
 import static com.mongodb.client.model.Projections.exclude;
 import static com.mongodb.client.model.Projections.include;
-import static io.vantiq.svcconnector.SvcConnectorServer.getVertx;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.RemovalListener;
@@ -25,10 +24,13 @@ import io.reactivex.rxjava3.core.Single;
 import io.reactivex.rxjava3.schedulers.Schedulers;
 import io.vantiq.svcconnector.InstanceConfigUtils;
 import io.vantiq.svcconnector.VantiqStorageManager;
-import io.vantiq.util.CacheIfNotEmptyOrError;
-import io.vantiq.util.VertxWideData;
+import io.vantiq.utils.CacheIfNotEmptyOrError;
+import io.vantiq.utils.VertxWideData;
+import io.vertx.core.json.JsonObject;
 import io.vertx.rxjava3.ContextScheduler;
+import io.vertx.rxjava3.core.Vertx;
 import lombok.extern.slf4j.Slf4j;
+import lombok.val;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.bson.Document;
 import org.bson.types.ObjectId;
@@ -49,9 +51,9 @@ import java.util.stream.Collectors;
 /**
  * Storage manager for MongoDB Atlas. This storage manager is designed to work with MongoDB Atlas clusters. It
  * supports all the storage manager API calls.
- * <p>
+ * <p/>
  * Copyright (c) 2023 Vantiq, Inc.
- * <p>
+ * <p/>
  * All rights reserved.
  */
 @Slf4j
@@ -61,13 +63,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     
     Connection connection;
     InstanceConfigUtils config = new InstanceConfigUtils();
-    Cache<String, Single<ImmutablePair<MongoDatabase, ClientSession>>> sessions;
-    Cache<String, Single<ClientSession>> transactions;
+    Cache<String, Single<ImmutablePair<MongoDatabase, ClientSession>>> dbSessions;
+    Cache<String, Single<ImmutablePair<MongoClient, ClientSession>>> transactions;
     volatile Scheduler rxScheduler = null;
     
     @Override
-    public Completable initialize() {
-        rxScheduler = new ContextScheduler(getVertx().getOrCreateContext(), false);
+    public Completable initialize(Vertx vertx) {
+        rxScheduler = new ContextScheduler(vertx.getDelegate().getOrCreateContext(), false);
         RemovalListener<String, Single<ImmutablePair<MongoDatabase,ClientSession>>> sessDbRemovalListener =
                 notification -> {
             Single<ImmutablePair<MongoDatabase, ClientSession>> value = notification.getValue();
@@ -75,16 +77,16 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 value.doOnSuccess(sessionDb -> sessionDb.getRight().close()).subscribe();
             }
         };
-        sessions = VertxWideData.getVertxWideCache(getVertx(), this.getClass().getName() + ".sessions",
+        dbSessions = VertxWideData.getVertxWideCache(vertx, this.getClass().getName() + ".sessions",
                 "expireAfterAccess=30m", null, sessDbRemovalListener, null);
         
-        RemovalListener<String, Single<ClientSession>> sessionRemovalListener = notification -> {
-            Single<ClientSession> value = notification.getValue();
+        RemovalListener<String, Single<ImmutablePair<MongoClient, ClientSession>>> sessionRemovalListener = notification -> {
+            Single<ImmutablePair<MongoClient, ClientSession>> value = notification.getValue();
             if (notification.wasEvicted() && value != null) {
-                value.doOnSuccess(ClientSession::close).subscribe();
+                value.doOnSuccess(cliSess -> cliSess.getRight().close()).subscribe();
             }
         };
-        transactions = VertxWideData.getVertxWideCache(getVertx(), this.getClass().getName() + ".transactions",
+        transactions = VertxWideData.getVertxWideCache(vertx, this.getClass().getName() + ".transactions",
                 "expireAfterAccess=15m", null, sessionRemovalListener, null);
         
         config.loadServerConfig();
@@ -518,8 +520,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
 
     @Override
     public Flowable<Map<String, Object>>
-    select(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties, Map<String,
-           Object> qual, Map<String, Object> options) {
+    select(String storageName, Map<String, Object> storageManagerReference, Map<String, Object> properties,
+           Map<String, Object> qual, Map<String, Object> options) {
 
         return collectionFromStorageName(storageName, options, (collection, session) ->
             Flowable.fromPublisher(buildFind(collection, session, new ArrayList<>(properties.keySet()), qual, options))
@@ -535,26 +537,29 @@ public class AtlasStorageMgr implements VantiqStorageManager {
      */
     <T> Flowable<T> usingSession(String databaseName, String xid, BiFunction<MongoDatabase, ClientSession,
                                  Publisher<T>> cmdFunction) {
-        Single<ImmutablePair<MongoDatabase, ClientSession>> sessionDbObs;
-        sessionDbObs = sessions.asMap().computeIfAbsent(databaseName, name -> {
-            Single<MongoClient> clientObs = connection.connect(config);
-            return clientObs.flatMapPublisher(client -> {
-                Flowable<ClientSession> sessionObs = Flowable.fromPublisher(client.startSession());
-                return sessionObs.map(session -> new ImmutablePair<>(client.getDatabase(databaseName), session));
-            }).compose(new CacheIfNotEmptyOrError<>()).firstOrError();
-        });
+        Single<ImmutablePair<MongoDatabase, ClientSession>> dbSessionObs;
         if (xid != null) {
-            // if we are in a transaction substitute its session to use instead of the default from above
-            sessionDbObs = sessionDbObs.flatMap(sessionDb -> transactions.asMap().getOrDefault(xid,
-                    Single.error(new Exception("No transaction found for id " + xid))).map(session ->
-                new ImmutablePair<>(sessionDb.getLeft(), session)
-            ));
+            // if we are in a transaction use its client and session to run the command
+            val errorIfMissing = Single.<ImmutablePair<MongoClient, ClientSession>>error(new Exception(
+                    "No transaction found for id " + xid));
+            dbSessionObs = transactions.asMap().getOrDefault(xid, errorIfMissing).observeOn(rxScheduler).map(cliSess ->
+                new ImmutablePair<>(cliSess.getLeft().getDatabase(databaseName), cliSess.getRight())
+            );
+        } else {
+            dbSessionObs = dbSessions.asMap().computeIfAbsent(databaseName, name -> {
+                Single<MongoClient> clientObs = connection.connect(config);
+                return clientObs.flatMapPublisher(client -> {
+                    Flowable<ClientSession> sessionObs = Flowable.fromPublisher(client.startSession());
+                    return sessionObs.map(session -> new ImmutablePair<>(client.getDatabase(databaseName), session));
+                }).compose(new CacheIfNotEmptyOrError<>()).firstOrError();
+            }).observeOn(rxScheduler);
         }
         
         AtomicLong start = new AtomicLong();
-        return sessionDbObs.flatMapPublisher(sessionDb -> cmdFunction.apply(sessionDb.getLeft(), sessionDb.getRight()))
-                .doOnSubscribe(s ->start.set(System.nanoTime()))
+        // mongodb always calls back on its own thread. switch back to the vertx event loop context via observeOn
+        return dbSessionObs.flatMapPublisher(sessionDb -> cmdFunction.apply(sessionDb.getLeft(), sessionDb.getRight()))
                 .observeOn(rxScheduler == null ? Schedulers.trampoline() : rxScheduler)
+                .doOnSubscribe(s ->start.set(System.nanoTime()))
                 .doOnComplete(() -> {
             long end = System.nanoTime();
             long duration = end - start.get();
@@ -569,10 +574,14 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     <T> Flowable<T>
     collectionFromStorageName(String storageName, Map<String, Object> options, BiFunction<MongoCollection<Document>,
                               ClientSession, Publisher<T>> cmdFunction) {
+        if (storageName == null) {
+            throw new IllegalArgumentException("No storage name specified type type");
+        }
         String[] parts = storageName.split(":");
         String databaseName = parts.length < 2 ? config.obtainDefaultDatabase(): parts[0];
         String collectionName = parts.length < 2 ? parts[0]: parts[1];
-        return usingSession(databaseName, (String)options.get("transaction"), (db, session) ->
+        String transaction = options == null ? null : (String)options.get("transaction");
+        return usingSession(databaseName, transaction, (db, session) ->
                 cmdFunction.apply(db.getCollection(collectionName), session));
     }
     
@@ -586,8 +595,8 @@ public class AtlasStorageMgr implements VantiqStorageManager {
                 if (t instanceof IllegalArgumentException) {
                     return Maybe.error(new Exception(
                         MessageFormat.format(
-                            "More than one instance of type: {0} was found.",
-                            Lists.newArrayList(storageName))));
+                            "In selectOne, more than one instance of type: {0} was found for qual {1}.",
+                            storageName, new JsonObject(qual).toString())));
                 }
                 return Maybe.error(t);
             });
@@ -609,44 +618,52 @@ public class AtlasStorageMgr implements VantiqStorageManager {
     public Completable
     startTransaction(String vantiqTransactionId, Map<String, Object> options) {
         return Completable.fromAction(() ->
-            transactions.asMap().computeIfAbsent(vantiqTransactionId, id -> {
-                Single<MongoClient> clientObs = connection.connect(config);
-                return clientObs.flatMapPublisher(MongoClient::startSession).doOnNext(ClientSession::startTransaction)
-                        .compose(new CacheIfNotEmptyOrError<>()).switchIfEmpty(
-                    // if we get here, startSession returned an empty publisher, should  never happen, but ...
-                    Flowable.error(new Exception("Failed to create a session in which to start a transaction"))
-                ).firstOrError().doOnSuccess(session ->
-                    log.debug("transactions started in session {} with number {}",
-                            session.getServerSession().getIdentifier(),
-                            session.getServerSession().getTransactionNumber())
-                );
-            })
+            transactions.asMap().computeIfAbsent(vantiqTransactionId, id -> 
+                Flowable.defer(() -> {
+                    Single<MongoClient> clientObs = connection.connect(config);
+                    return clientObs.flatMapPublisher(client ->
+                        Flowable.fromPublisher(client.startSession()).map(session -> {
+                            session.startTransaction();
+                            return new ImmutablePair<>(client, session);
+                        }).switchIfEmpty(
+                            // if we get here, startSession returned an empty publisher, should  never happen, but ...
+                            Flowable.error(new Exception("Failed to create a session in which to start a transaction"))
+                        )
+                    );
+                }).compose(new CacheIfNotEmptyOrError<>()).firstOrError()
+            )
         );
     }
 
     @Override
     public Completable commitTransaction(String vantiqTransactionId, Map<String, Object> options) {
-        Single<ClientSession> sessionObs = transactions.asMap().remove(vantiqTransactionId);
-        if (sessionObs == null) {
+        Single<ImmutablePair<MongoClient, ClientSession>> cliSessObs = transactions.asMap().remove(vantiqTransactionId);
+        if (cliSessObs == null) {
             return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
         }
-        return sessionObs.flatMapPublisher(session ->
-                Flowable.fromPublisher(session.commitTransaction()).doOnComplete(() ->
-                    log.debug("transaction {} committed", vantiqTransactionId)
-                ).doOnError(t ->
-                    log.debug("transaction {} failed to commit with error: {}", vantiqTransactionId, t.getMessage())
-                ).doOnComplete(session::close)
+        // 1st observeOn ensures we switch from thread that cached the session, while the 2nd switches from the thread
+        // that mongo the mongodb client calls back on
+        return cliSessObs.observeOn(rxScheduler).flatMapPublisher(cliSess ->
+            Flowable.fromPublisher(cliSess.getRight().commitTransaction()).observeOn(rxScheduler).doOnComplete(() ->
+                log.debug("transaction {} committed", vantiqTransactionId)
+            ).doOnError(t ->
+                log.debug("transaction {} failed to commit with error: {}", vantiqTransactionId, t.getMessage())
+            ).doOnComplete(() -> cliSess.getRight().close())
         ).ignoreElements();
     }
 
     @Override
     public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> options) {
-        Single<ClientSession> sessionObs = transactions.asMap().remove(vantiqTransactionId);
-        if (sessionObs == null) {
+        Single<ImmutablePair<MongoClient, ClientSession>> cliSessObs = transactions.asMap().remove(vantiqTransactionId);
+        if (cliSessObs == null) {
             return Completable.error(new Exception("No transaction found for id " + vantiqTransactionId));
         }
-        return sessionObs.flatMapPublisher(session ->
-                Flowable.fromPublisher(session.abortTransaction()).doOnComplete(session::close)
+        // 1st observeOn ensures we switch from thread that cached the session, while the 2nd switches from the thread
+        // that the mongodb client calls back on
+        return cliSessObs.observeOn(rxScheduler).flatMapPublisher(cliSess ->
+            Flowable.fromPublisher(cliSess.getRight().abortTransaction()).observeOn(rxScheduler).doOnComplete(() ->
+                cliSess.getRight().close()
+            )
         ).ignoreElements();
     }
 
