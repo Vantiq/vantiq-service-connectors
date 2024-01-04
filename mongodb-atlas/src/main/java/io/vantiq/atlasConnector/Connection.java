@@ -1,5 +1,11 @@
 package io.vantiq.atlasConnector;
 
+import static io.vantiq.svcconnector.InstanceConfigUtils.MONGO_AUTH_SOURCE_PROP;
+import static io.vantiq.svcconnector.InstanceConfigUtils.MONGO_CONN_PROTOCOL_PROP;
+import static io.vantiq.svcconnector.InstanceConfigUtils.MONGO_DEFAULT_DB_PROP;
+import static io.vantiq.svcconnector.InstanceConfigUtils.MONGO_HOST_PROP;
+import static io.vantiq.svcconnector.InstanceConfigUtils.MONGO_SERVER_API_PROP;
+
 import com.mongodb.ConnectionString;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.ServerApi;
@@ -63,30 +69,40 @@ public class Connection {
         if (clientObservable == null) {
             Properties properties = config.loadServerConfig();
             Properties secrets = config.loadServerSecrets();
-            String connectionString = "mongodb+srv://" + secrets.getProperty("secret") 
-                    + "@" + properties.getProperty("clusterHostname", "cluster0.h7jzx3i.mongodb.net");
-            if (properties.containsKey("defaultDatabase")) {
-                connectionString += "/" + properties.getProperty("defaultDatabase") 
-                        + "?authSource=admin&retryWrites=true&w=1";
+            if (secrets.getProperty("secret") == null) {
+                return Single.error(new RuntimeException(
+                        "secrets.properties lacks credentials to authenticate to MongoDB"));
+            }
+            
+            String connectionString = properties.getProperty(MONGO_CONN_PROTOCOL_PROP, "mongodb+srv") + "://" +
+                    secrets.getProperty("secret") + "@" + 
+                    properties.getProperty(MONGO_HOST_PROP, "cluster0.h7jzx3i.mongodb.net");
+            if (properties.containsKey(MONGO_DEFAULT_DB_PROP)) {
+                connectionString += "/" + properties.getProperty(MONGO_DEFAULT_DB_PROP) + "?retryWrites=true&w=1";
             } else {
                 connectionString += "/?retryWrites=true&w=1";
             }
+            if (properties.containsKey(MONGO_AUTH_SOURCE_PROP)) {
+                connectionString += "&authSource=" + properties.getProperty(MONGO_AUTH_SOURCE_PROP);
+            }
 
-            ServerApi serverApi = ServerApi.builder()
-                    .version(ServerApiVersion.V1)
-                    .build();
+            log.debug("connecting to mongoDB with connection string: {}",
+                    connectionString.replace(secrets.getProperty("secret"), "********"));
 
-            MongoClientSettings settings = MongoClientSettings.builder()
-                    .applyConnectionString(new ConnectionString(connectionString))
-                    .serverApi(serverApi)
-                    .build();
+            MongoClientSettings.Builder builder = MongoClientSettings.builder()
+                    .applyConnectionString(new ConnectionString(connectionString));
+            
+            if (properties.containsKey(MONGO_SERVER_API_PROP)) {
+                ServerApi serverApi = ServerApi.builder()
+                        .version(ServerApiVersion.findByValue(properties.getProperty(MONGO_SERVER_API_PROP)))
+                        .build();
+                builder.serverApi(serverApi);
+            }
+            MongoClientSettings settings = builder.build();
 
             synchronized (this) {
                 if (clientObservable == null) {
-                    clientObservable = Single.fromSupplier(() -> {
-                        log.debug("Connecting to MongoDB Atlas");
-                        return MongoClients.create(settings);
-                    }).cache();
+                    clientObservable = Single.fromSupplier(() -> MongoClients.create(settings)).cache();
                 }
             }
             // Create a new client and connect to the server

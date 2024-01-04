@@ -133,7 +133,7 @@ public class TestAtlasConnector {
 
         val type = session.initializeTypeDefinition(createTypeDefinition("TestType"));
         // should get an empty map for type restrictions
-        assert type.get("storageName").equals("cluster0:TestType");
+        assert ((String)type.get("storageName")).endsWith(":TestType");
 
         var result = session.insert("cluster0:TestType", Map.of("name", "Bart Simpson", "address", "123 Main St", "amount", 100));
         // should get an empty map for type restrictions

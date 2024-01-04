@@ -1,5 +1,8 @@
 package io.vantiq.svcconnector;
 
+import static io.vantiq.svcconnector.InstanceConfigUtils.CONNECT_THREADS_PROP;
+import static io.vantiq.svcconnector.InstanceConfigUtils.WORKER_THREADS_PROP;
+
 import io.vantiq.utils.StorageManagerError;
 import io.vantiq.utils.StorageManagerErrorCodec;
 import io.vantiq.utils.SvcConnSvcMsgCodec;
@@ -8,6 +11,8 @@ import io.vertx.core.Vertx;
 import io.vertx.core.VertxOptions;
 import io.vertx.core.json.JsonObject;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.Properties;
 
 /**
  * The main class for the service connector server.  This class is responsible for starting the server and deploying the
@@ -36,14 +41,23 @@ public class SvcConnectorServer {
         vertx.eventBus().registerDefaultCodec(SvcConnSvrMessage.class, new SvcConnSvcMsgCodec());
         vertx.eventBus().registerDefaultCodec(StorageManagerError.class, new StorageManagerErrorCodec());
 
+        Properties properties = new InstanceConfigUtils().loadServerConfig();
+        // unless overridden via property setting start 1 connection thread per processor
+        int nConnectThreads = Integer.parseInt(properties.getProperty(CONNECT_THREADS_PROP,
+                String.valueOf(runtime.availableProcessors())));
+        
+        // unless overridden via property setting start 4x the number of processors of the storage manager verticle
+        int nWorkerThreads = Integer.parseInt(properties.getProperty(WORKER_THREADS_PROP,
+                String.valueOf(4*runtime.availableProcessors())));
+        
         log.info("Detected {} processors, starting {} instances of the websocket processing verticle and " +
                         "{} instances of the storage manager verticle",
-                runtime.availableProcessors(), runtime.availableProcessors(), 4*runtime.availableProcessors());
+                runtime.availableProcessors(), nConnectThreads, nWorkerThreads);
         
         // start a web socket verticle for each of the processors. it is the case that once a connection is established
         // all subsequent requests are handled by the same vertx event loop.
         DeploymentOptions deployOptions = new DeploymentOptions()
-                .setInstances(runtime.availableProcessors())
+                .setInstances(nConnectThreads)
                 .setConfig(verticleConfig);
         vertx.deployVerticle(WebSocketRequestVerticle::new, deployOptions).onFailure(t -> {
             System.err.println("Failed to deploy main verticle: " + t.getMessage());
@@ -51,8 +65,7 @@ public class SvcConnectorServer {
             System.exit(1);
         });
         
-        // start 4x the number of processors of the storage manager verticle
-        deployOptions.setInstances(4*runtime.availableProcessors());
+        deployOptions.setInstances(nWorkerThreads);
         vertx.deployVerticle(StorageManagerVerticle::new, deployOptions).onFailure(t -> {
             System.err.println("Failed to deploy storage manager verticle: " + t.getMessage());
             vertx.close();
