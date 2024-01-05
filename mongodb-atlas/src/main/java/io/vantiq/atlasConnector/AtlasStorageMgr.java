@@ -95,20 +95,13 @@ public class AtlasStorageMgr implements VantiqStorageManager {
         return connection.connect(config).flatMapPublisher(client -> {
             MongoDatabase adminDb = client.getDatabase("admin");
             AtomicLong start = new AtomicLong();
-            return Flowable.fromPublisher(adminDb.runCommand(new Document("ping", 1)))
-                    .doOnSubscribe(s -> start.set(System.currentTimeMillis()))
-                    .map(doc -> {
-                // depending on the server version: the result can be an Integer 1, and it can be a Double 1.0
-                if (doc.containsKey("ok")) {
-                    if (doc.get("ok") instanceof Integer && (Integer)doc.get("ok") != 1) {
-                        throw new Exception("Failed to ping MongoDB Atlas");
-                    } else if (doc.get("ok") instanceof Double && (Double)doc.get("ok") != 1.0) {
-                        throw new Exception("Failed to ping MongoDB Atlas");
-                    }
-                }
-                log.debug("Connected to MongoDB Atlas, ping time: {}ms", System.currentTimeMillis() - start.get());
-                return doc;
-            });
+            return Flowable.fromPublisher(adminDb.runCommand(new Document("ping", 1))).doOnSubscribe(s ->
+                start.set(System.currentTimeMillis())
+            ).doOnComplete(() ->
+                    log.debug("Connected to MongoDB, ping time: {}ms", System.currentTimeMillis() - start.get())
+            ).doOnError(t ->
+                    log.error("Failed to connect to MongoDB", t)
+            );
         }).ignoreElements();
     }
 
