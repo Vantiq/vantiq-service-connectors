@@ -98,9 +98,9 @@ public class AtlasStorageMgr implements VantiqStorageManager {
             return Flowable.fromPublisher(adminDb.runCommand(new Document("ping", 1))).doOnSubscribe(s ->
                 start.set(System.currentTimeMillis())
             ).doOnComplete(() ->
-                    log.debug("Connected to MongoDB, ping time: {}ms", System.currentTimeMillis() - start.get())
-            ).doOnError(t ->
-                    log.error("Failed to connect to MongoDB", t)
+                log.debug("Connected to MongoDB, ping time: {}ms", System.currentTimeMillis() - start.get())
+            ).doOnError(t -> 
+                log.error("Failed to connect to MongoDB", t)
             );
         }).ignoreElements();
     }
