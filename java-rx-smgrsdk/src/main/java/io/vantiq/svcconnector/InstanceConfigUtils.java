@@ -24,8 +24,15 @@ public class InstanceConfigUtils {
     public static final String CONFIG_WAS_PROGRAMMATIC = "configWasProgrammatic";
     public static final String SERVER_CONFIG_FILENAME = "config.properties";
     public static final String SERVER_SECRETS_FILENAME = "secrets.properties";
-    public static final String PORT_PROP_NAME = "port";
-    public static final String TCP_PROBE_PORT_NAME = "tcpProbePort";
+    public static final String PORT_PROP = "port";
+    public static final String WORKER_THREADS_PROP = "workerThreads";
+    public static final String CONNECT_THREADS_PROP = "connectionThreads";
+    public static final String TCP_PROBE_PORT_PROP = "tcpProbePort";
+    public static final String MONGO_DEFAULT_DB_PROP = "mongoDefaultDatabase";
+    public static final String MONGO_AUTH_SOURCE_PROP = "mongoAuthSource";
+    public static final String MONGO_CONN_PROTOCOL_PROP = "mongoConnectionProtocol";
+    public static final String MONGO_HOST_PROP = "mongoClusterHostSpec";
+    public static final String MONGO_SERVER_API_PROP = "mongoServerApi";
     public static final String SECRETS_DIR_PROP = "io.vantiq.secretsDir";
     public static final String CONFIG_DIR_PROP = "io.vantiq.configDir";
     public static final Integer DEFAULT_PORT = 8888;
@@ -130,8 +137,8 @@ public class InstanceConfigUtils {
      */
     public Integer obtainPrimaryPort() {
         int port = DEFAULT_PORT;
-        if (serverConfigProperties.getProperty(PORT_PROP_NAME) != null) {
-            port = Integer.parseInt(serverConfigProperties.getProperty(PORT_PROP_NAME));
+        if (serverConfigProperties.getProperty(PORT_PROP) != null) {
+            port = Integer.parseInt(serverConfigProperties.getProperty(PORT_PROP));
         }
         return port;
     }
@@ -142,7 +149,7 @@ public class InstanceConfigUtils {
         synchronized (this) {
             localServerConfigProps = serverConfigProperties;
         }
-        return localServerConfigProps.getProperty("defaultDatabase");
+        return localServerConfigProps.getProperty(MONGO_DEFAULT_DB_PROP);
     }
 
     /**
@@ -161,7 +168,7 @@ public class InstanceConfigUtils {
 
         if (localServerConfigProps != null) {
             // Grab the property and return result
-            String portString = localServerConfigProps.getProperty(TCP_PROBE_PORT_NAME);
+            String portString = localServerConfigProps.getProperty(TCP_PROBE_PORT_PROP);
             if (portString != null) {
                 return Integer.parseInt(portString);
             }
