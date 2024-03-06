@@ -21,5 +21,8 @@ class TestServiceConnector(BaseVantiqServiceConnector):
     async def get_config(self):
         return await self._get_client_config()
 
+    def get_config_direct(self):
+        return self._client_config
+
 
 app = TestServiceConnector().app
