@@ -15,7 +15,8 @@ from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect
 from prometheus_client import make_asgi_app, Gauge, Counter, Summary
 from vantiqsdk import Vantiq
 
-CLIENT_CONFIG_MSG = '_setClientConfig'
+SET_CLIENT_CONFIG_MSG = '_setClientConfig'
+CLEAR_CLIENT_CONFIG_MSG = '_clearClientConfig'
 
 
 class BaseVantiqServiceConnector:
@@ -95,6 +96,11 @@ class BaseVantiqServiceConnector:
             self._config_set.notify_all()
         return True
 
+    async def _clear_client_config(self) -> bool:
+        async with self._config_set:
+            self._client_config = None
+        return True
+
     async def _get_vantiq_client(self) -> Vantiq:
         config = await self._get_client_config()
         client = Vantiq(config['uri'])
@@ -124,7 +130,7 @@ class BaseVantiqServiceConnector:
             try:
                 # Start by asking for our configuration (if we don't have it)
                 if self._client_config is None:
-                    config_request = {"requestId": CLIENT_CONFIG_MSG, "isControlRequest": True}
+                    config_request = {"requestId": SET_CLIENT_CONFIG_MSG, "isControlRequest": True}
                     await websocket.send_json(config_request, "binary")
 
                 while True:
@@ -185,8 +191,12 @@ class BaseVantiqServiceConnector:
             raise Exception("No procedure name provided")
 
         # Are we being given our configuration?
-        if procedure_name == CLIENT_CONFIG_MSG:
-            return await self._set_client_config(params.pop("config", None))
+        if procedure_name == SET_CLIENT_CONFIG_MSG:
+            return await self._set_client_config(params.pop("config", {}))
+
+        # Are we being asked to clear our configuration?
+        if procedure_name == CLEAR_CLIENT_CONFIG_MSG:
+            return await self._clear_client_config()
 
         # Confirm that the procedure exists
         if not hasattr(self, procedure_name):

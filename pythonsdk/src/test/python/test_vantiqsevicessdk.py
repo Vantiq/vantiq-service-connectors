@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 
 import testservice
 from testservice import TestServiceConnector
-from vantiqservicesdk import CLIENT_CONFIG_MSG
+from vantiqservicesdk import SET_CLIENT_CONFIG_MSG
 
 # Prevent pytest from trying to collect TestServiceConnector as tests:
 TestServiceConnector.__test__ = False
@@ -97,10 +97,10 @@ def __handle_set_config(websocket, config=None):
     if config_set:
         return
     response: dict = websocket.receive_json('binary')
-    assert response['requestId'] == CLIENT_CONFIG_MSG
+    assert response['requestId'] == SET_CLIENT_CONFIG_MSG
     assert response['isControlRequest']
     if config is not None:
-        __invoke_procedure(websocket, CLIENT_CONFIG_MSG, "1234", {"config": config})
+        __invoke_procedure(websocket, SET_CLIENT_CONFIG_MSG, "1234", {"config": config})
         config_set = True
 
 
