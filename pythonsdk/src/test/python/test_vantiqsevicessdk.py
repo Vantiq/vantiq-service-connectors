@@ -5,7 +5,7 @@ from starlette.testclient import TestClient
 
 import testservice
 from testservice import TestServiceConnector
-from vantiqservicesdk import CLIENT_CONFIG_MSG
+from vantiqservicesdk import SET_CLIENT_CONFIG_MSG, CLEAR_CLIENT_CONFIG_MSG
 
 # Prevent pytest from trying to collect TestServiceConnector as tests:
 TestServiceConnector.__test__ = False
@@ -55,12 +55,19 @@ def test_invoke():
 
 def test_get_config():
     with client.websocket_connect("/wsock/websocket") as websocket:
+        # Start by simulating the client setting the config
         config = {"test": "config"}
         __handle_set_config(websocket, config)
         response = __invoke_procedure(websocket, "get_config", "123")
         assert response['requestId'] == "123"
         assert response['isEOF']
         assert response['result'] == config
+
+        # Now simulate a request to clear the config
+        __invoke_procedure(websocket, CLEAR_CLIENT_CONFIG_MSG, "12345", {})
+        response = __invoke_procedure(websocket, "get_config_direct", "321")
+        assert response['requestId'] == "321"
+        assert response['result'] is None
 
 
 def test_invoke_errors():
@@ -97,10 +104,10 @@ def __handle_set_config(websocket, config=None):
     if config_set:
         return
     response: dict = websocket.receive_json('binary')
-    assert response['requestId'] == CLIENT_CONFIG_MSG
+    assert response['requestId'] == SET_CLIENT_CONFIG_MSG
     assert response['isControlRequest']
     if config is not None:
-        __invoke_procedure(websocket, CLIENT_CONFIG_MSG, "1234", {"config": config})
+        __invoke_procedure(websocket, SET_CLIENT_CONFIG_MSG, "1234", {"config": config})
         config_set = True
 
 
