@@ -81,116 +81,119 @@ public class StorageManagerVerticle extends AbstractVerticle {
     private Flowable<?> dispatch(SvcConnSvrMessage msg) {
         log.debug("In dispatch dispatching the next request msg: {}", msg.procName);
         Flowable<?> result;
-        if (msg.procName != null) {
-            // procedure name is <package name>.<service name>.<procedure name>
-            String[] parts = msg.procName.split("\\.");
-            if (parts.length < 2) {
-                throw new IllegalArgumentException("unrecognized storage manager service procedure call: "
-                        + msg.procName);
-            }
-            String procName = parts[parts.length-1];
-            switch (procName) {
-                case "update":
-                    result = storageManager.update((String) msg.params.get("storageName"),
-                                    (Map<String, Object>) msg.params.get("storageManagerReference"),
-                                    (Map<String, Object>) msg.params.get("values"), (Map<String, Object>) msg.params.get("qual"),
-                                    (Map<String, Object>) msg.params.get("options"))
-                            .toFlowable();
-                    break;
-                case "insertMany":
-                    result = storageManager.insertMany((String) msg.params.get("storageName"),
-                            (Map<String, Object>) msg.params.get("storageManagerReference"),
-                            (List<Map<String, Object>>) msg.params.get("values"),
-                            (Map<String, Object>)msg.params.get("options"));
-                    break;
-                case "insert":
-                    result = storageManager.insert((String) msg.params.get("storageName"),
-                            (Map<String, Object>) msg.params.get("storageManagerReference"),
-                            (Map<String, Object>) msg.params.get("values"),
-                            (Map<String, Object>) msg.params.get("options")).toFlowable();
-                    break;
-                case "count":
-                    result = storageManager.count((String) msg.params.get("storageName"),
-                                    (Map<String, Object>) msg.params.get("storageManagerReference"),
-                                    (Map<String, Object>) msg.params.get("qual"), (Map<String, Object>) msg.params.get("options"))
-                            .toFlowable();
-                    break;
-                case "select":
-                    result = storageManager.select((String) msg.params.get("storageName"),
-                            (Map<String, Object>) msg.params.get("storageManagerReference"),
-                            (Map<String, Object>) msg.params.get("properties"), (Map<String, Object>) msg.params.get("qual"),
-                            (Map<String, Object>) msg.params.get("options"));
-                    break;
-                case "aggregate":
-                    result = storageManager.aggregate((String) msg.params.get("storageName"),
-                            (Map<String, Object>) msg.params.get("storageManagerReference"),
-                            (List<Map<String, Object>>) msg.params.get("pipeline"),
-                            (Map<String, Object>) msg.params.get("options"));
-                    break;
-                case "selectOne":
-                    result = storageManager.selectOne((String) msg.params.get("storageName"),
-                                    (Map<String, Object>) msg.params.get("storageManagerReference"),
-                                    (Map<String, Object>) msg.params.get("properties"), (Map<String, Object>) msg.params.get("qual"),
-                                    (Map<String, Object>) msg.params.get("options"))
-                            .toFlowable();
-                    break;
-                case "delete":
-                    result = storageManager.delete((String) msg.params.get("storageName"),
-                                    (Map<String, Object>) msg.params.get("storageManagerReference"),
-                                    (Map<String, Object>) msg.params.get("qual"), (Map<String, Object>) msg.params.get("options"))
-                            .toFlowable();
-                    break;
-                case "getTypeRestrictions":
-                    result = storageManager.getTypeRestrictions().toFlowable();
-                    break;
-                case "initializeTypeDefinition":
-                    if (msg.params == null || !(msg.params.get("proposedType") instanceof Map)) {
-                        result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
-                                msg.procName));
-                    } else {
-                        //noinspection unchecked
-                        result = storageManager.initializeTypeDefinition(
-                                (Map<String, Object>) msg.params.get("proposedType"),
-                                (Map<String, Object>) msg.params.get("existingType")
+        try {
+            if (msg.procName != null) {
+                // procedure name is <package name>.<service name>.<procedure name>
+                String[] parts = msg.procName.split("\\.");
+                if (parts.length < 2) {
+                    throw new IllegalArgumentException("unrecognized storage manager service procedure call: "
+                            + msg.procName);
+                }
+                String procName = parts[parts.length - 1];
+                switch (procName) {
+                    case "update":
+                        result = storageManager.update((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (Map<String, Object>) msg.params.get("values"), (Map<String, Object>) msg.params.get("qual"),
+                                (Map<String, Object>) msg.params.get("options")).toFlowable();
+                        break;
+                    case "insertMany":
+                        result = storageManager.insertMany((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (List<Map<String, Object>>) msg.params.get("values"),
+                                (Map<String, Object>) msg.params.get("options"));
+                        break;
+                    case "insert":
+                        result = storageManager.insert((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (Map<String, Object>) msg.params.get("values"),
+                                (Map<String, Object>) msg.params.get("options")).toFlowable();
+                        break;
+                    case "count":
+                        result = storageManager.count((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (Map<String, Object>) msg.params.get("qual"), (Map<String, Object>) msg.params.get("options")
                         ).toFlowable();
-                    }
-                    break;
-                case "typeDefinitionDeleted":
-                    if (msg.params == null || !(msg.params.get("type") instanceof Map)) {
-                        result = Flowable.error(new Exception("invalid parameters for storage manager service procedure call: " +
-                                msg.procName));
-                    } else {
-                        //noinspection unchecked
-                        result = storageManager.typeDefinitionDeleted(
-                                (Map<String, Object>) msg.params.get("type"),
+                        break;
+                    case "select":
+                        result = storageManager.select((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (Map<String, Object>) msg.params.get("properties"), (Map<String, Object>) msg.params.get("qual"),
+                                (Map<String, Object>) msg.params.get("options"));
+                        break;
+                    case "aggregate":
+                        result = storageManager.aggregate((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (List<Map<String, Object>>) msg.params.get("pipeline"),
+                                (Map<String, Object>) msg.params.get("options"));
+                        break;
+                    case "selectOne":
+                        result = storageManager.selectOne((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (Map<String, Object>) msg.params.get("properties"), (Map<String, Object>) msg.params.get("qual"),
                                 (Map<String, Object>) msg.params.get("options")
                         ).toFlowable();
-                    }
-                    break;
-                case "startTransaction":
-                    result = storageManager.startTransaction(
-                            (String)msg.params.get("vantiqTransactionId"),
-                            (Map<String, Object>) msg.params.get("options")
-                    ).toFlowable();
-                    break;
-                case "commitTransaction":
-                    result = storageManager.commitTransaction(
-                            (String)msg.params.get("vantiqTransactionId"),
-                            (Map<String, Object>) msg.params.get("options")
-                    ).toFlowable();
-                    break;
-                case "abortTransaction":
-                    result = storageManager.abortTransaction(
-                            (String)msg.params.get("vantiqTransactionId"),
-                            (Map<String, Object>) msg.params.get("options")
-                    ).toFlowable();
-                    break;
-                default:
-                    result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
-                            msg.procName));
+                        break;
+                    case "delete":
+                        result = storageManager.delete((String) msg.params.get("storageName"),
+                                (Map<String, Object>) msg.params.get("storageManagerReference"),
+                                (Map<String, Object>) msg.params.get("qual"), (Map<String, Object>) msg.params.get("options")
+                        ).toFlowable();
+                        break;
+                    case "getTypeRestrictions":
+                        result = storageManager.getTypeRestrictions().toFlowable();
+                        break;
+                    case "initializeTypeDefinition":
+                        if (msg.params == null || !(msg.params.get("proposedType") instanceof Map)) {
+                            result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
+                                    msg.procName));
+                        } else {
+                            //noinspection unchecked
+                            result = storageManager.initializeTypeDefinition(
+                                    (Map<String, Object>) msg.params.get("proposedType"),
+                                    (Map<String, Object>) msg.params.get("existingType")
+                            ).toFlowable();
+                        }
+                        break;
+                    case "typeDefinitionDeleted":
+                        if (msg.params == null || !(msg.params.get("type") instanceof Map)) {
+                            result = Flowable.error(new Exception("invalid parameters for storage manager service procedure call: " +
+                                    msg.procName));
+                        } else {
+                            //noinspection unchecked
+                            result = storageManager.typeDefinitionDeleted(
+                                    (Map<String, Object>) msg.params.get("type"),
+                                    (Map<String, Object>) msg.params.get("options")
+                            ).toFlowable();
+                        }
+                        break;
+                    case "startTransaction":
+                        result = storageManager.startTransaction(
+                                (String) msg.params.get("vantiqTransactionId"),
+                                (Map<String, Object>) msg.params.get("options")
+                        ).toFlowable();
+                        break;
+                    case "commitTransaction":
+                        result = storageManager.commitTransaction(
+                                (String) msg.params.get("vantiqTransactionId"),
+                                (Map<String, Object>) msg.params.get("options")
+                        ).toFlowable();
+                        break;
+                    case "abortTransaction":
+                        result = storageManager.abortTransaction(
+                                (String) msg.params.get("vantiqTransactionId"),
+                                (Map<String, Object>) msg.params.get("options")
+                        ).toFlowable();
+                        break;
+                    default:
+                        result = Flowable.error(new Exception("unrecognized storage manager service procedure call: " +
+                                msg.procName));
+                }
+            } else {
+                result = Flowable.error(new Exception("no procedure name given in service procedure call"));
             }
-        } else {
-            result = Flowable.error(new Exception("no procedure name given in service procedure call"));
+        } catch (Throwable t) {
+            result = Flowable.error(t);
         }
         return result;
     }

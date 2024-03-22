@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * run through some basic atlas connector tests
@@ -121,6 +122,21 @@ public class TestAtlasConnector {
     }
     
     @SuppressWarnings("unused")
+    @Test
+    void testErrors() {
+        AtomicBoolean gotError = new AtomicBoolean(false);
+        session.setErrorHandler(t -> {
+            if (t.getMessage().contains("unrecognized storage manager service procedure call: noSuchProcedure")) {
+                log.debug("expected error: {}", t.getMessage());
+                gotError.set(true);
+            } else {
+                fail("Unexpected error encountered in test", t);
+            }
+        });
+        session.noSuchProcedure();
+        assert gotError.get();
+    }
+    
     @Test
     void testInvocations() {
         val restricts = session.getTypeRestrictions();

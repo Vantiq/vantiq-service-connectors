@@ -8,6 +8,7 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.WebSocket;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.json.jackson.DatabindCodec;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import lombok.val;
 
@@ -23,7 +24,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 /**
- * Put together the basic operations for interacting with the storage manager over a websocket.
+ * Put together the basic operations for interacting with the storage manager over a websocket.<p/>
  * 
  * On connect we establish a websocket connection using the default port. Once established the Storage Manager API-like
  * calls can be made. Every entry point is synchronous.
@@ -36,6 +37,7 @@ import java.util.function.Consumer;
 public class SocketSession {
     private final static ObjectMapper mapper = DatabindCodec.mapper();
     WebSocket websocket;
+    @Setter
     Consumer<Throwable> errorHandler;
     
     public SocketSession(Consumer<Throwable> errorHandler) {
@@ -75,6 +77,7 @@ public class SocketSession {
             }
         });
         try {
+            //noinspection ResultOfMethodCallIgnored
             sync.await(15, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             errorRef.set(e);
@@ -135,6 +138,7 @@ public class SocketSession {
         }
 
         try {
+            //noinspection ResultOfMethodCallIgnored
             sync.await(15, TimeUnit.SECONDS);
         } catch (InterruptedException ie) {
             error.set(new RuntimeException(ie));
@@ -234,9 +238,13 @@ public class SocketSession {
         List<Map<String, Object>> results = new ArrayList<>();
         String procName = "com.pkg.myService.aggregate";
         writeAndHandle(procName, Map.of("storageManagerReference", Map.of(), "storageName", storageName, "pipeline",
-                        pipeline), json -> {
-            results.add(json.getJsonObject("result").getMap());
-        });
+                        pipeline), json -> results.add(json.getJsonObject("result").getMap()));
+        
         return results;
+    }
+    
+    public void noSuchProcedure() {
+        writeAndHandle("noSuchProcedure", new HashMap<>(), result ->
+                log.debug("got a result when an error was expected {}", result));
     }
 }
