@@ -59,6 +59,12 @@ class BaseVantiqServiceConnector:
         self._client_config: Union[dict, None] = None
         self._config_set = asyncio.Condition()
 
+        # Set up the logger
+        interval_str = os.environ.get('LOG_CONFIG_INTERVAL')
+        interval = int(interval_str) if interval_str is not None else None
+        self.__logger_config = LoggerConfig(['./config/logger.yaml'], interval)
+        self.__logger_config.configure_logging()
+
         # Create logger
         cur_class = self.__class__
         self._logger = logging.getLogger(f"{cur_class.__module__}.{cur_class.__name__}")
@@ -114,6 +120,7 @@ class BaseVantiqServiceConnector:
     async def _health_check(self) -> str:
         return f"{self.service_name} is healthy"
 
+    # noinspection PyMethodMayBeStatic
     def _status(self) -> dict:
         return {}
 
@@ -177,13 +184,28 @@ class BaseVantiqServiceConnector:
                 result = await self.__invoke(procedure_name, params)
                 response["result"] = result
 
+            # Serialize to JSON and encode
+            text = json.dumps(response, separators=(",", ":"), ensure_ascii=False,
+                              default=lambda obj: self.to_json(obj))
+            encoded_response = text.encode("utf-8")
+
         except Exception as e:
+            # Log and record error
             self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
-            # noinspection PyUnresolvedReferences
             self.__get_resource_metric(self._failed_requests, procedure_name).inc()
+
+            # Remove the result and add the error message
+            response.pop("result", None)
             response["errorMsg"] = str(e)
 
-        await websocket.send_json(response, "binary")
+            # Serialize to JSON and encode (duplicated here to record JSON serialization errors)
+            encoded_response = json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+        # Send the response
+        await websocket.send({"type": "websocket.send", "bytes": encoded_response})
+
+    def to_json(self, obj: Any) -> Any:
+        raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
 
     async def __invoke(self, procedure_name: str, params: dict) -> Any:
         # Confirm that we have a procedure name

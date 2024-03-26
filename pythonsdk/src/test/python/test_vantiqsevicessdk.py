@@ -68,6 +68,8 @@ def test_get_config():
         response = __invoke_procedure(websocket, "get_config_direct", "321")
         assert response['requestId'] == "321"
         assert response['result'] is None
+        global config_set
+        config_set = False
 
 
 def test_invoke_errors():
