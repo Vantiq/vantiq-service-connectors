@@ -5,6 +5,7 @@ import logging
 import logging.config
 import os
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os.path import exists
 from threading import Thread
@@ -182,12 +183,22 @@ class BaseVantiqServiceConnector:
             request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
             with request_timer.time():
                 result = await self.__invoke(procedure_name, params)
-                response["result"] = result
+                if isinstance(result, AsyncIterator):
+                    # Send back the results as they are received
+                    async for data in result:
+                        response = {"requestId": request.get("requestId"), "result": data}
+                        encoded_response = self.encode_response(response)
+                        await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
-            # Serialize to JSON and encode
-            text = json.dumps(response, separators=(",", ":"), ensure_ascii=False,
-                              default=lambda obj: self.to_json(obj))
-            encoded_response = text.encode("utf-8")
+                    # Initialize the final response
+                    response = {"requestId": request.get("requestId")}
+                else:
+                    # Send back the single result
+                    response["result"] = result
+
+            # Mark this as the final response and encode
+            response["isEOF"] = True
+            encoded_response = self.encode_response(response)
 
         except Exception as e:
             # Log and record error
@@ -203,6 +214,11 @@ class BaseVantiqServiceConnector:
 
         # Send the response
         await websocket.send({"type": "websocket.send", "bytes": encoded_response})
+
+    def encode_response(self, response: dict) -> bytes:
+        text = json.dumps(response, separators=(",", ":"), ensure_ascii=False,
+                          default=lambda obj: self.to_json(obj))
+        return text.encode("utf-8")
 
     def to_json(self, obj: Any) -> Any:
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')

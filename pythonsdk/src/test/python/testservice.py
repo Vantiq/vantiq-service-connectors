@@ -18,6 +18,10 @@ class TestServiceConnector(BaseVantiqServiceConnector):
     async def test_procedure(self):
         return "This is a test"
 
+    async def test_asynciter_procedure(self):
+        for i in range(0, 9):
+            yield i
+
     async def get_config(self):
         return await self._get_client_config()
 
