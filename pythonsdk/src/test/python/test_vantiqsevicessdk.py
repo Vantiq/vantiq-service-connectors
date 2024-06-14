@@ -53,6 +53,25 @@ def test_invoke():
         assert exec_count in result
 
 
+def test_streamed_invoke():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        __handle_set_config(websocket)
+        response = __invoke_procedure(websocket, "test_asynciter_procedure", "123")
+        assert isinstance(response, list)
+        assert len(response) == 10
+        for i in range(0, 9):
+            assert response[i]['result'] == i
+        assert response[9]['isEOF']
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        result = response.text
+        assert "active_requests 0.0" in result
+        assert "webSockets_active 1.0" in result
+        exec_count = 'resources_executions_count{id="TestServiceConnector",resource="system.serviceconnectors",' \
+                     'serviceProcedure="test_asynciter_procedure"} 1.0'
+        assert exec_count in result
+
+
 def test_get_config():
     with client.websocket_connect("/wsock/websocket") as websocket:
         # Start by simulating the client setting the config
@@ -118,5 +137,17 @@ def __invoke_procedure(websocket, proc_name, request_id, params=None) -> dict:
     if params is not None:
         request['params'] = params
     websocket.send_json(request, 'binary')
-    response: dict = websocket.receive_json('binary')
-    return response
+    done = False
+    result = None
+    is_list = False
+    while not done:
+        response: dict = websocket.receive_json('binary')
+        done = response.get('isEOF', False)
+        if result is None:
+            result = response
+        else:
+            if not is_list:
+                result = [result]
+                is_list = True
+            result.append(response)
+    return result
