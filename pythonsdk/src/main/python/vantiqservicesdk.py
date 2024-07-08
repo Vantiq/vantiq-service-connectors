@@ -250,8 +250,12 @@ class BaseVantiqServiceConnector:
         if not callable(func):
             raise Exception(f"Procedure {procedure_name} is not callable")
 
-        if not is_system_request and (self.__is_system_only(func) or self.check_system_required(procedure_name, params)):
-            raise Exception(f"Procedure {procedure_name} is only available to the system namespace")
+        if not is_system_request:
+            if self.__is_system_only(func):
+                raise Exception(f"Procedure {procedure_name} is only available to the system namespace")
+            elif self.check_system_required(procedure_name, params):
+                raise Exception(f"Procedure {procedure_name} is only available to the system namespace with the " +
+                                "parameters given")
 
         # Invoke the function (possibly using await)
         params = params or {}
