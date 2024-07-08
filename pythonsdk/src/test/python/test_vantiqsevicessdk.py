@@ -129,6 +129,10 @@ def test_invoke_system_only():
         assert response['requestId'] == "123"
         assert response['isEOF']
         assert response['errorMsg'] == "Procedure system_only_proc is only available to the system namespace"
+        response = __invoke_procedure(websocket, "system_only_proc", "123", None, None)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == "Procedure system_only_proc is only available to the system namespace"
         response = __invoke_procedure(websocket, "system_only_proc", "123", None, True)
         assert response['requestId'] == "123"
         assert response['isEOF']
@@ -139,6 +143,12 @@ def test_invoke_system_only():
         # Test conditionally system-only procedure
         response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
                                       {"system_required": True}, False)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == ("Procedure conditionally_system_only_proc is only available to the system "
+                                        "namespace with the parameters given")
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": True}, None)
         assert response['requestId'] == "123"
         assert response['isEOF']
         assert response['errorMsg'] == ("Procedure conditionally_system_only_proc is only available to the system "
