@@ -9,7 +9,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from os.path import exists
 from threading import Thread
-from typing import Union, Any, Set, TypeVar, List
+from typing import Union, Any, Set, TypeVar, List, Callable
 
 import yaml
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect
@@ -178,11 +178,12 @@ class BaseVantiqServiceConnector:
             # Get the procedure name and parameters
             procedure_name = request.get("procName")
             params = request.get("params")
+            isSystemNs = request.get("isSystemRequest", False)
 
             # Invoke the procedure and store the result
             request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
             with request_timer.time():
-                result = await self.__invoke(procedure_name, params)
+                result = await self.__invoke(procedure_name, params, isSystemNs)
                 if isinstance(result, AsyncIterator):
                     # Send back the results as they are received
                     async for data in result:
@@ -223,7 +224,7 @@ class BaseVantiqServiceConnector:
     def to_json(self, obj: Any) -> Any:
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
 
-    async def __invoke(self, procedure_name: str, params: dict) -> Any:
+    async def __invoke(self, procedure_name: str, params: dict, isSystemRequest: bool) -> Any:
         # Confirm that we have a procedure name
         if procedure_name is None:
             raise Exception("No procedure name provided")
@@ -249,6 +250,9 @@ class BaseVantiqServiceConnector:
         if not callable(func):
             raise Exception(f"Procedure {procedure_name} is not callable")
 
+        if not isSystemRequest and is_system_only(func):
+            raise Exception(f"Procedure {procedure_name} is only available to the system namespace")
+
         # Invoke the function (possibly using await)
         params = params or {}
         if inspect.iscoroutinefunction(func):
@@ -261,6 +265,13 @@ class BaseVantiqServiceConnector:
     def __get_resource_metric(self, metric: T, procedure_name: str) -> T:
         return metric.labels(resource='system.serviceconnectors', id=self.service_name,
                              serviceProcedure=procedure_name)
+
+def system_only(func: Callable):
+    setattr(func, "__is_system_only__", True)
+    return func
+
+def is_system_only(func: Callable) -> bool:
+    return getattr(func, "__is_system_only__", False)
 
 
 class LoggerConfig:
