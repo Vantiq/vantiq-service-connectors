@@ -224,7 +224,7 @@ class BaseVantiqServiceConnector:
     def to_json(self, obj: Any) -> Any:
         raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
 
-    async def __invoke(self, procedure_name: str, params: dict, isSystemRequest: bool) -> Any:
+    async def __invoke(self, procedure_name: str, params: dict, is_system_request: bool) -> Any:
         # Confirm that we have a procedure name
         if procedure_name is None:
             raise Exception("No procedure name provided")
@@ -250,7 +250,7 @@ class BaseVantiqServiceConnector:
         if not callable(func):
             raise Exception(f"Procedure {procedure_name} is not callable")
 
-        if not isSystemRequest and is_system_only(func):
+        if not is_system_request and (self.__is_system_only(func) or self.check_system_required(procedure_name, params)):
             raise Exception(f"Procedure {procedure_name} is only available to the system namespace")
 
         # Invoke the function (possibly using await)
@@ -266,12 +266,18 @@ class BaseVantiqServiceConnector:
         return metric.labels(resource='system.serviceconnectors', id=self.service_name,
                              serviceProcedure=procedure_name)
 
+    def __is_system_only(self, func: Callable) -> bool:
+        return getattr(func, "__is_system_only__", False)
+
+    def check_system_required(self, procedure_name: str, params: dict) -> bool:
+        """Returns True if the procedure call with the given parameters is only available to calls from the system
+        namespace. If the decision does not depend on the parameters, use the decorator @system_only instead."""
+        return False
+
+
 def system_only(func: Callable):
     setattr(func, "__is_system_only__", True)
     return func
-
-def is_system_only(func: Callable) -> bool:
-    return getattr(func, "__is_system_only__", False)
 
 
 class LoggerConfig:

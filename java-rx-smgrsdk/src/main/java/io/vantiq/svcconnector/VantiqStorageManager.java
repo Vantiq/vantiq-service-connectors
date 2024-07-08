@@ -23,6 +23,10 @@ public interface VantiqStorageManager {
      */
     Completable initialize(Vertx vertx);
 
+    default boolean checkRequiresSystem(SvcConnSvrMessage msg) {
+        return false;
+    }
+    
     /**
      * What is and is not supported for types managed by this storage manager
      *

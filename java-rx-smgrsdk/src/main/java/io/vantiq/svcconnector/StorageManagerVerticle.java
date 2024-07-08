@@ -90,6 +90,12 @@ public class StorageManagerVerticle extends AbstractVerticle {
                             + msg.procName);
                 }
                 String procName = parts[parts.length - 1];
+                
+                // Pre 1.40 the value may be null
+                if ((msg.isSystemRequest == null || !msg.isSystemRequest) && !storageManager.checkRequiresSystem(msg)) {
+                    throw new IllegalArgumentException("Cannot run ");
+                }
+                
                 switch (procName) {
                     case "update":
                         result = storageManager.update((String) msg.params.get("storageName"),
