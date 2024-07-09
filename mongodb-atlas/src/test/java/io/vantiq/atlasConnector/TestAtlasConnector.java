@@ -70,7 +70,7 @@ public class TestAtlasConnector {
             }
             vertx.deployVerticle(StorageManagerVerticle::new, deployOptions, ar2 -> {
                 if (!ar2.succeeded()) {
-                    testContext.failNow(ar.cause());
+                    testContext.failNow(ar2.cause());
                 }
                 testContext.completeNow();
             });

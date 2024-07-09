@@ -1,5 +1,6 @@
 package io.vantiq.svcconnector;
 
+import com.google.common.collect.Lists;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;
@@ -92,8 +93,9 @@ public class StorageManagerVerticle extends AbstractVerticle {
                 String procName = parts[parts.length - 1];
                 
                 // Pre 1.40 the value may be null
-                if ((msg.isSystemRequest == null || !msg.isSystemRequest) && !storageManager.checkRequiresSystem(msg)) {
-                    throw new IllegalArgumentException("Cannot run ");
+                if ((msg.isSystemRequest == null || !msg.isSystemRequest) && storageManager.checkRequiresSystem(msg)) {
+                    throw new IllegalArgumentException("Cannot run the procedure " + procName +
+                            " from non-system namespaces.");
                 }
                 
                 switch (procName) {
