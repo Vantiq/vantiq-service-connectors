@@ -27,7 +27,9 @@ import java.util.function.Consumer;
  * On connect we establish a websocket connection using the default port. Once established the Storage Manager API-like
  * calls can be made. Every entry point is synchronous.
  * <p/>
- * Copyright (c) 2023 Vantiq, Inc.
+ * A limited copy of the SocketSession in the MongoDB Atlas manager's tests.
+ * <p/>
+ * Copyright (c) 2024 Vantiq, Inc.
  * <p/>
  * All rights reserved.
  */
@@ -148,14 +150,6 @@ public class SocketSession {
         if (error.get() != null) {
             errorHandler.accept(error.get());
         }
-    }
-
-    public Map<String, Object> getTypeRestrictions() {
-        AtomicReference<Map<String, Object>> restrs = new AtomicReference<>();
-        writeAndHandle("com.pkg.myService.getTypeRestrictions", null, null, json ->
-                restrs.set(json.getJsonObject("result").getMap())
-        );
-        return restrs.get();
     }
     
     public int count(String storageName, Map<String, Map<String, String>> qual, Boolean isSystemNamespace) {

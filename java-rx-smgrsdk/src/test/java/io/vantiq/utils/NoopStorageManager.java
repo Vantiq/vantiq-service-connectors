@@ -110,6 +110,6 @@ public class NoopStorageManager implements VantiqStorageManager {
     
     @Override
     public boolean checkRequiresSystem(SvcConnSvrMessage msg) {
-        return msg.procName.endsWith("count") || msg.procName.endsWith("commitTransaction");
+        return msg.procName.endsWith("count");
     }
 }

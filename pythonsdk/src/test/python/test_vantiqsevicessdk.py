@@ -154,6 +154,13 @@ def test_invoke_system_only():
         assert response['errorMsg'] == ("Procedure conditionally_system_only_proc is only available to the system "
                                         "namespace with the parameters given")
         response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": True}, True)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['result'] == "Must be system NS? True"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
                                       {"system_required": False}, False)
         assert response['requestId'] == "123"
         assert response['isEOF']
@@ -165,13 +172,6 @@ def test_invoke_system_only():
         assert response['requestId'] == "123"
         assert response['isEOF']
         assert response['result'] == "Must be system NS? False"
-        response = client.get("/metrics")
-        assert response.status_code == 200
-        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
-                                      {"system_required": True}, True)
-        assert response['requestId'] == "123"
-        assert response['isEOF']
-        assert response['result'] == "Must be system NS? True"
         response = client.get("/metrics")
         assert response.status_code == 200
 

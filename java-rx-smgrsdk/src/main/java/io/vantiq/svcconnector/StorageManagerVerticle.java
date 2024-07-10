@@ -1,6 +1,5 @@
 package io.vantiq.svcconnector;
 
-import com.google.common.collect.Lists;
 import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.disposables.Disposable;

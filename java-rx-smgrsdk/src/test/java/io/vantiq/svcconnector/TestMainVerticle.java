@@ -2,17 +2,14 @@ package io.vantiq.svcconnector;
 
 import static org.junit.jupiter.api.Assertions.fail;
 
-import groovy.lang.Tuple2;
 import io.vantiq.utils.SocketSession;
 import io.vantiq.utils.StorageManagerError;
 import io.vantiq.utils.StorageManagerErrorCodec;
 import io.vantiq.utils.SvcConnSvcMsgCodec;
 import io.vertx.core.DeploymentOptions;
-import io.vertx.core.Handler;
 import io.vertx.core.Verticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
-import io.vertx.core.http.WebSocket;
 import io.vertx.core.json.JsonObject;
 import io.vertx.junit5.VertxExtension;
 import io.vertx.junit5.VertxTestContext;
@@ -22,10 +19,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
@@ -165,17 +159,5 @@ public class TestMainVerticle {
         gotError.set(false);
         session.count("", Collections.emptyMap(), null);
         assert gotError.get();
-    }
-    
-    public void writeBuffer(WebSocket ws, String jsonParams, VertxTestContext tc) {
-        try {
-            ws.write(Buffer.buffer(jsonParams), writeAr -> {
-                if (writeAr.failed()) {
-                    tc.failNow(writeAr.cause());
-                }
-            });
-        } catch (Throwable t) {
-            tc.failNow(t);
-        }
     }
 }

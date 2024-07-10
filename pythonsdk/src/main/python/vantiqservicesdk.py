@@ -178,12 +178,12 @@ class BaseVantiqServiceConnector:
             # Get the procedure name and parameters
             procedure_name = request.get("procName")
             params = request.get("params")
-            isSystemNs = request.get("isSystemRequest", False)
+            is_system_request = request.get("isSystemRequest", False)
 
             # Invoke the procedure and store the result
             request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
             with request_timer.time():
-                result = await self.__invoke(procedure_name, params, isSystemNs)
+                result = await self.__invoke(procedure_name, params, is_system_request)
                 if isinstance(result, AsyncIterator):
                     # Send back the results as they are received
                     async for data in result:
