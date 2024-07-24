@@ -178,7 +178,10 @@ class BaseVantiqServiceConnector:
             # Get the procedure name and parameters
             procedure_name = request.get("procName")
             params = request.get("params")
-            is_system_request = request.get("isSystemRequest", False)
+
+            # In the future, it should be set by an explicit value isSystemRequest. For compatibility reasons, we
+            # must accept appending "__system" to the requestId as equivalent
+            is_system_request = request.get("isSystemRequest", False) or request.get("requestId").endswith("__system")
 
             # Invoke the procedure and store the result
             request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)

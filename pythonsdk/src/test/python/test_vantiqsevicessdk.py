@@ -140,6 +140,14 @@ def test_invoke_system_only():
         response = client.get("/metrics")
         assert response.status_code == 200
 
+        # Test with the "__system" syntax
+        response = __invoke_procedure(websocket, "system_only_proc", "123__system", None, None)
+        assert response['requestId'] == "123__system"
+        assert response['isEOF']
+        assert response['result'] == "This better be from the system namespace"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+
         # Test conditionally system-only procedure
         response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
                                       {"system_required": True}, False)
