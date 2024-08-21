@@ -183,6 +183,52 @@ def test_invoke_system_only():
         response = client.get("/metrics")
         assert response.status_code == 200
 
+def test_message_size():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        # Set the config to limit the message size
+        max_size = 1000
+        config = {"maxMessageSize": max_size}
+        __handle_set_config(websocket, config)
+
+        # Invoke procedure that returns a legal message size
+        size = int(max_size / 2)
+        response = __invoke_procedure(websocket, "echo_x", "123", {"size": size})
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert len(response['result']) == size
+
+        # Invoke the procedure again with a larger response
+        size = max_size + 1
+        response = __invoke_procedure(websocket, "echo_x", "123", {"size": size})
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == "Message size 1045 exceeds maximum size 1000"
+
+
+def test_default_message_size():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        # Set default config (no message size limit)
+        __handle_set_config(websocket)
+
+        # Invoke procedure that returns a very large message
+        size = 100000
+        response = __invoke_procedure(websocket, "echo_x", "123", {"size": size})
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert len(response['result']) == size
+
+def test_key_error():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        # Set default config
+        __handle_set_config(websocket)
+
+        # Invoke procedure that generates a key error
+        response = __invoke_procedure(websocket, "key_error", "123", {})
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == "Failed to find expected dict key: 'key'"
+
+
 
 def __handle_set_config(websocket, config=None):
     global config_set

@@ -192,6 +192,7 @@ class BaseVantiqServiceConnector:
                     async for data in result:
                         response = {"requestId": request.get("requestId"), "result": data}
                         encoded_response = self.encode_response(response)
+                        self._check_message_size(encoded_response)
                         await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
                     # Initialize the final response
@@ -203,6 +204,7 @@ class BaseVantiqServiceConnector:
             # Mark this as the final response and encode
             response["isEOF"] = True
             encoded_response = self.encode_response(response)
+            self._check_message_size(encoded_response)
 
         except Exception as e:
             # Log and record error
@@ -211,13 +213,22 @@ class BaseVantiqServiceConnector:
 
             # Remove the result and add the error message
             response.pop("result", None)
-            response["errorMsg"] = str(e)
+            error_str = str(e)
+            if isinstance(e, KeyError):
+                error_str = f"Failed to find expected dict key: {error_str}"
+            response["errorMsg"] = error_str
 
             # Serialize to JSON and encode (duplicated here to record JSON serialization errors)
             encoded_response = json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
 
         # Send the response
         await websocket.send({"type": "websocket.send", "bytes": encoded_response})
+
+    def _check_message_size(self, encoded_message: bytes) -> None:
+        config = self._client_config or {}
+        max_size = config.get("maxMessageSize", -1)
+        if (max_size > 0) and (len(encoded_message) > max_size):
+            raise Exception(f"Message size {len(encoded_message)} exceeds maximum size {max_size}")
 
     def encode_response(self, response: dict) -> bytes:
         text = json.dumps(response, separators=(",", ":"), ensure_ascii=False,
@@ -273,6 +284,7 @@ class BaseVantiqServiceConnector:
         return metric.labels(resource='system.serviceconnectors', id=self.service_name,
                              serviceProcedure=procedure_name)
 
+    # noinspection PyMethodMayBeStatic
     def __is_system_only(self, func: Callable) -> bool:
         return getattr(func, "__is_system_only__", False)
 

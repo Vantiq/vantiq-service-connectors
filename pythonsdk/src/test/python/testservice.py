@@ -42,5 +42,13 @@ class TestServiceConnector(BaseVantiqServiceConnector):
     def get_config_direct(self):
         return self._client_config
 
+    # noinspection PyMethodMayBeStatic
+    def echo_x(self, size: int):
+        return "x" * size
+
+    # noinspection PyMethodMayBeStatic
+    def key_error(self):
+        return {}["key"]
+
 
 app = TestServiceConnector().app
