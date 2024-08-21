@@ -120,6 +120,70 @@ def test_invoke_errors():
         assert response['errorMsg'] == "Procedure service_name is not callable"
 
 
+def test_invoke_system_only():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        __handle_set_config(websocket)
+
+        # Test @system_only procedure
+        response = __invoke_procedure(websocket, "system_only_proc", "123", None, False)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == "Procedure system_only_proc is only available to the system namespace"
+        response = __invoke_procedure(websocket, "system_only_proc", "123", None, None)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == "Procedure system_only_proc is only available to the system namespace"
+        response = __invoke_procedure(websocket, "system_only_proc", "123", None, True)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['result'] == "This better be from the system namespace"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+
+        # Test with the "__system" syntax
+        response = __invoke_procedure(websocket, "system_only_proc", "123__system", None, None)
+        assert response['requestId'] == "123__system"
+        assert response['isEOF']
+        assert response['result'] == "This better be from the system namespace"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+
+        # Test conditionally system-only procedure
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": True}, False)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == ("Procedure conditionally_system_only_proc is only available to the system "
+                                        "namespace with the parameters given")
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": True}, None)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['errorMsg'] == ("Procedure conditionally_system_only_proc is only available to the system "
+                                        "namespace with the parameters given")
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": True}, True)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['result'] == "Must be system NS? True"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": False}, False)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['result'] == "Must be system NS? False"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        response = __invoke_procedure(websocket, "conditionally_system_only_proc", "123",
+                                      {"system_required": False}, True)
+        assert response['requestId'] == "123"
+        assert response['isEOF']
+        assert response['result'] == "Must be system NS? False"
+        response = client.get("/metrics")
+        assert response.status_code == 200
+
+
 def __handle_set_config(websocket, config=None):
     global config_set
     if config_set:
@@ -132,10 +196,12 @@ def __handle_set_config(websocket, config=None):
         config_set = True
 
 
-def __invoke_procedure(websocket, proc_name, request_id, params=None) -> dict:
+def __invoke_procedure(websocket, proc_name, request_id, params=None, from_system=None) -> dict:
     request = {"procName": proc_name, "requestId": request_id}
     if params is not None:
         request['params'] = params
+    if from_system is not None:
+        request['isSystemRequest'] = from_system
     websocket.send_json(request, 'binary')
     done = False
     result = None

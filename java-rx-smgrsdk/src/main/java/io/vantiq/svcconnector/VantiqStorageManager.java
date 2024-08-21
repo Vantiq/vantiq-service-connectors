@@ -22,7 +22,18 @@ public interface VantiqStorageManager {
      * do anything necessary prior to receiving storage manager related requests
      */
     Completable initialize(Vertx vertx);
-
+    
+    /**
+     * Whether the message should only be accepted if it comes from the system namespace. If this returns true and the
+     * message is not from the system namespace, an error will be thrown.
+     *
+     * @param msg
+     * @return
+     */
+    default boolean checkRequiresSystem(SvcConnSvrMessage msg) {
+        return false;
+    }
+    
     /**
      * What is and is not supported for types managed by this storage manager
      *

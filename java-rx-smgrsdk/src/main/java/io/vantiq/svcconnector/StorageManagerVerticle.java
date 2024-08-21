@@ -90,6 +90,16 @@ public class StorageManagerVerticle extends AbstractVerticle {
                             + msg.procName);
                 }
                 String procName = parts[parts.length - 1];
+                
+                // In the future, it should be set by an explicit value isSystemRequest. For compatibility reasons, we
+                // must accept appending "__system" to the requestId as equivalent
+                boolean isSystemRequest = (msg.isSystemRequest != null && msg.isSystemRequest) ||
+                        (msg.requestId != null && msg.requestId.endsWith("__system"));
+                if (!isSystemRequest && storageManager.checkRequiresSystem(msg)) {
+                    throw new IllegalArgumentException("Cannot run the procedure " + procName +
+                            " from non-system namespaces.");
+                }
+                
                 switch (procName) {
                     case "update":
                         result = storageManager.update((String) msg.params.get("storageName"),

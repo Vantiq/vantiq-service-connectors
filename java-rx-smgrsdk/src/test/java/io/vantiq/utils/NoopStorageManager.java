@@ -4,6 +4,7 @@ import io.reactivex.rxjava3.core.Completable;
 import io.reactivex.rxjava3.core.Flowable;
 import io.reactivex.rxjava3.core.Maybe;
 import io.reactivex.rxjava3.core.Single;
+import io.vantiq.svcconnector.SvcConnSvrMessage;
 import io.vantiq.svcconnector.VantiqStorageManager;
 import io.vertx.rxjava3.core.Vertx;
 
@@ -105,5 +106,10 @@ public class NoopStorageManager implements VantiqStorageManager {
     @Override
     public Completable abortTransaction(String vantiqTransactionId, Map<String, Object> options) {
         return Completable.complete();
+    }
+    
+    @Override
+    public boolean checkRequiresSystem(SvcConnSvrMessage msg) {
+        return msg.procName.endsWith("count");
     }
 }
