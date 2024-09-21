@@ -13,7 +13,7 @@ plugins {
     id 'pl.allegro.tech.build.axion-release' version '1.13.14'
     id "com.jfrog.artifactory" version "4.31.4" apply false
     id 'jacoco'
-    id 'com.chrisgahlert.gradle-dcompose-plugin' version '0.17.2' apply false
+    id 'com.vantiq.gradle-dcompose-plugin' version '0.18.0' apply false
 }
 
 wrapper {
@@ -89,7 +89,7 @@ subprojects {
     apply plugin: 'idea'
     apply plugin: 'eclipse'
     apply plugin: 'java'
-    apply plugin: 'com.chrisgahlert.gradle-dcompose-plugin'
+    apply plugin: 'com.vantiq.gradle-dcompose-plugin'
     apply plugin: "io.franzbecker.gradle-lombok"
     lombok {
         version = "${lombokVersion}"
