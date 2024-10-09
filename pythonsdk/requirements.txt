@@ -4,27 +4,33 @@
 #
 #    pip-compile --output-file=requirements.txt --unsafe-package=py requirements-build.in requirements-sdk.in
 #
-aiohttp==3.9.3
+aiohappyeyeballs==2.4.3
+    # via aiohttp
+aiohttp==3.10.9
     # via vantiqsdk
 aiosignal==1.3.1
     # via aiohttp
-anyio==4.3.0
+annotated-types==0.7.0
+    # via pydantic
+anyio==4.6.0
     # via
     #   httpx
     #   starlette
     #   watchfiles
-attrs==23.2.0
+attrs==24.2.0
     # via aiohttp
-build==1.1.1
+backports-tarfile==1.2.0
+    # via jaraco-context
+build==1.2.2.post1
     # via
     #   -r requirements-build.in
     #   pip-tools
-certifi==2024.2.2
+certifi==2024.8.30
     # via
     #   httpcore
     #   httpx
     #   requests
-charset-normalizer==3.3.2
+charset-normalizer==3.4.0
     # via requests
 click==8.1.7
     # via
@@ -36,9 +42,9 @@ colorama==0.4.6
     #   click
     #   pytest
     #   uvicorn
-docutils==0.20.1
+docutils==0.21.2
     # via readme-renderer
-fastapi==0.110.0
+fastapi==0.115.0
     # via -r requirements-sdk.in
 frozenlist==1.4.1
     # via
@@ -48,71 +54,79 @@ h11==0.14.0
     # via
     #   httpcore
     #   uvicorn
-httpcore==1.0.4
+httpcore==1.0.6
     # via httpx
 httptools==0.6.1
     # via uvicorn
-httpx==0.27.0
+httpx==0.27.2
     # via -r requirements-build.in
-idna==3.6
+idna==3.10
     # via
     #   anyio
     #   httpx
     #   requests
     #   yarl
-importlib-metadata==7.0.1
+importlib-metadata==8.5.0
     # via
     #   keyring
     #   twine
 iniconfig==2.0.0
     # via pytest
-jaraco-classes==3.3.1
+jaraco-classes==3.4.0
     # via keyring
-jinja2==3.1.3
+jaraco-context==6.0.1
+    # via keyring
+jaraco-functools==4.1.0
+    # via keyring
+jinja2==3.1.4
     # via pytest-html
-keyring==24.3.1
+keyring==25.4.1
     # via twine
 markdown-it-py==3.0.0
     # via rich
-markupsafe==2.1.5
+markupsafe==3.0.1
     # via jinja2
 mdurl==0.1.2
     # via markdown-it-py
-more-itertools==10.2.0
-    # via jaraco-classes
-multidict==6.0.5
+more-itertools==10.5.0
+    # via
+    #   jaraco-classes
+    #   jaraco-functools
+multidict==6.1.0
     # via
     #   aiohttp
     #   yarl
-nh3==0.2.15
+nh3==0.2.18
     # via readme-renderer
-packaging==23.2
+packaging==24.1
     # via
     #   build
     #   pytest
-pip==24.0
+pip==24.2
     # via pip-tools
 pip-tools==7.4.1
     # via -r requirements-build.in
 pkginfo==1.10.0
     # via twine
-pluggy==1.4.0
+pluggy==1.5.0
     # via pytest
-prometheus-client==0.20.0
+prometheus-client==0.21.0
     # via -r requirements-sdk.in
-pydantic==1.10.14
-    # via
-    #   -r requirements-sdk.in
-    #   fastapi
-pygments==2.17.2
+propcache==0.2.0
+    # via yarl
+pydantic==2.9.2
+    # via fastapi
+pydantic-core==2.23.4
+    # via pydantic
+pygments==2.18.0
     # via
     #   readme-renderer
     #   rich
-pyproject-hooks==1.0.0
+pyproject-hooks==1.2.0
     # via
     #   build
     #   pip-tools
-pytest==8.0.2
+pytest==8.3.3
     # via
     #   -r requirements-build.in
     #   pytest-html
@@ -123,53 +137,55 @@ pytest-metadata==3.1.1
     # via pytest-html
 python-dotenv==1.0.1
     # via uvicorn
-pywin32-ctypes==0.2.2
+pywin32-ctypes==0.2.3
     # via keyring
-pyyaml==6.0.1
+pyyaml==6.0.2
     # via uvicorn
-readme-renderer==43.0
+readme-renderer==44.0
     # via twine
-requests==2.31.0
+requests==2.32.3
     # via
     #   requests-toolbelt
     #   twine
+    #   vantiqsdk
 requests-toolbelt==1.0.0
     # via twine
 rfc3986==2.0.0
     # via twine
-rich==13.7.1
+rich==13.9.2
     # via twine
-setuptools==69.1.1
+setuptools==75.1.0
     # via pip-tools
 sniffio==1.3.1
     # via
     #   anyio
     #   httpx
-starlette==0.36.3
+starlette==0.38.6
     # via fastapi
-twine==5.0.0
+twine==5.1.1
     # via -r requirements-build.in
-typing-extensions==4.10.0
+typing-extensions==4.12.2
     # via
     #   fastapi
     #   pydantic
-urllib3==2.2.1
+    #   pydantic-core
+urllib3==2.2.3
     # via
     #   requests
     #   twine
-uvicorn[standard]==0.27.1
+uvicorn[standard]==0.31.1
     # via -r requirements-sdk.in
-vantiqsdk==1.2.2
+vantiqsdk==1.4.0
     # via -r requirements-sdk.in
-watchfiles==0.21.0
+watchfiles==0.24.0
     # via uvicorn
-websockets==12.0
+websockets==13.1
     # via
     #   uvicorn
     #   vantiqsdk
-wheel==0.42.0
+wheel==0.44.0
     # via pip-tools
-yarl==1.9.4
+yarl==1.14.0
     # via aiohttp
-zipp==3.17.0
+zipp==3.20.2
     # via importlib-metadata
