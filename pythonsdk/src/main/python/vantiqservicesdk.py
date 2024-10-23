@@ -51,6 +51,7 @@ class BaseVantiqServiceConnector:
         # Set up prometheus metrics -- these are aligned with the Vantiq metrics to the extent possible
         self._websocket_count = Gauge('webSockets_active', 'Current number of websockets')
         self._active_requests = Gauge('active_requests', 'Current number of active requests')
+        self._fire_forget_requests = Gauge('fire_forget_requests', 'Total count of fire and forget requests')
         self._resources_executions = Summary('resources_executions', 'Resource execution metrics',
                                              ['resource', 'id', 'serviceProcedure'])
         self._failed_requests = Counter('resources_executions_failed', 'Number of failed requests',
@@ -149,13 +150,19 @@ class BaseVantiqServiceConnector:
                         continue
 
                     # Spawn a task to process the message and send the response
-                    task = asyncio.create_task(self.__process_message(websocket, msg_bytes))
+                    request = json.loads(msg_bytes.decode("utf-8"))
+                    options = request.pop('options', {})
+                    task = asyncio.create_task(self.__process_message(websocket, request))
 
-                    # Add the task to the set of active requests and remove when done.
-                    # See https://docs.python.org/3/library/asyncio-task.html#creating-tasks
-                    active_requests.add(task)
-                    self._active_requests.inc(1)
-                    task.add_done_callback(__complete_request)
+                    if options.get('fire_forget', False):
+                        # we've fired, now forget (mostly)
+                        self._fire_forget_requests.inc(1)
+                    else:
+                        # Add the task to the set of active requests and remove when done.
+                        # See https://docs.python.org/3/library/asyncio-task.html#creating-tasks
+                        active_requests.add(task)
+                        self._active_requests.inc(1)
+                        task.add_done_callback(__complete_request)
 
             except WebSocketDisconnect:
                 pass
@@ -166,9 +173,8 @@ class BaseVantiqServiceConnector:
                     self._active_requests.dec(1)
                     task.cancel()
 
-    async def __process_message(self, websocket: WebSocket, msg_bytes: bytes) -> None:
+    async def __process_message(self, websocket: WebSocket, request: dict) -> None:
         # Decode the message as JSON
-        request = json.loads(msg_bytes.decode("utf-8"))
         self._logger.debug('Request was: %s', request)
 
         # Set up default response and invoke the procedure

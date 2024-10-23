@@ -72,6 +72,17 @@ def test_streamed_invoke():
         assert exec_count in result
 
 
+def test_fire_forget():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        __handle_set_config(websocket)
+        response = __invoke_procedure(websocket, "test_procedure", "123", options={"fire_forget": True})
+        assert response['isEOF']
+        response = client.get("/metrics")
+        assert response.status_code == 200
+        result = response.text
+        assert "fire_forget_requests 1.0" in result
+
+
 def test_get_config():
     with client.websocket_connect("/wsock/websocket") as websocket:
         # Start by simulating the client setting the config
@@ -248,12 +259,14 @@ def __handle_clear_config(websocket):
     global config_set
     config_set = False
 
-def __invoke_procedure(websocket, proc_name, request_id, params=None, from_system=None) -> dict:
+def __invoke_procedure(websocket, proc_name, request_id, params=None, from_system=None, options=None) -> dict:
     request = {"procName": proc_name, "requestId": request_id}
     if params is not None:
         request['params'] = params
     if from_system is not None:
         request['isSystemRequest'] = from_system
+    if options is not None:
+        request['options'] = options
     websocket.send_json(request, 'binary')
     done = False
     result = None
