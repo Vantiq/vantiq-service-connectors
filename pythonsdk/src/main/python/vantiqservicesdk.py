@@ -149,17 +149,18 @@ class BaseVantiqServiceConnector:
                         await websocket.send_bytes('pong'.encode("utf-8"))
                         continue
 
-                    # Spawn a task to process the message and send the response
+                    # Decode the message as JSON
                     request = json.loads(msg_bytes.decode("utf-8"))
                     options = request.pop('options', {})
-                    task = asyncio.create_task(self.__process_message(websocket, request))
 
+                    # Spawn a task to process the request and possibly send the response
                     if options.get('fire_forget', False):
-                        # we've fired, now forget (mostly)
+                        asyncio.create_task(self.__fire_forget(websocket, request))
                         self._fire_forget_requests.inc(1)
                     else:
                         # Add the task to the set of active requests and remove when done.
                         # See https://docs.python.org/3/library/asyncio-task.html#creating-tasks
+                        task = asyncio.create_task(self.__request_response(websocket, request))
                         active_requests.add(task)
                         self._active_requests.inc(1)
                         task.add_done_callback(__complete_request)
@@ -173,12 +174,8 @@ class BaseVantiqServiceConnector:
                     self._active_requests.dec(1)
                     task.cancel()
 
-    async def __process_message(self, websocket: WebSocket, request: dict) -> None:
-        # Decode the message as JSON
+    async def __process_message(self, request: dict) -> Any:
         self._logger.debug('Request was: %s', request)
-
-        # Set up default response and invoke the procedure
-        response = {"requestId": request.get("requestId"), "isEOF": True}
         procedure_name: str = 'unknown'
         try:
             # Get the procedure name and parameters
@@ -193,19 +190,36 @@ class BaseVantiqServiceConnector:
             request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
             with request_timer.time():
                 result = await self.__invoke(procedure_name, params, is_system_request)
-                if isinstance(result, AsyncIterator):
-                    # Send back the results as they are received
-                    async for data in result:
-                        response = {"requestId": request.get("requestId"), "result": data}
-                        encoded_response = self.encode_response(response)
-                        self._check_message_size(encoded_response)
-                        await websocket.send({"type": "websocket.send", "bytes": encoded_response})
+                return result
+        except Exception as e:
+            # Log and record error
+            self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
+            self.__get_resource_metric(self._failed_requests, procedure_name).inc()
+            raise e
+    
+    async def __fire_forget(self, websocket: WebSocket, request: dict) -> None:
+        response = self.encode_response({"requestId": request.get("requestId"), "isEOF": True})
+        await websocket.send({"type": "websocket.send", "bytes": response})
+        await self.__process_message(request)
+    
+    async def __request_response(self, websocket: WebSocket, request: dict) -> None:
+        # Set up default response and invoke the procedure
+        response = {"requestId": request.get("requestId"), "isEOF": True}
+        try:
+            result = await self.__process_message(request)
+            if isinstance(result, AsyncIterator):
+                # Send back the results as they are received
+                async for data in result:
+                    response = {"requestId": request.get("requestId"), "result": data}
+                    encoded_response = self.encode_response(response)
+                    self._check_message_size(encoded_response)
+                    await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
-                    # Initialize the final response
-                    response = {"requestId": request.get("requestId")}
-                else:
-                    # Send back the single result
-                    response["result"] = result
+                # Initialize the final response
+                response = {"requestId": request.get("requestId")}
+            else:
+                # Send back the single result
+                response["result"] = result
 
             # Mark this as the final response and encode
             response["isEOF"] = True
@@ -213,10 +227,6 @@ class BaseVantiqServiceConnector:
             self._check_message_size(encoded_response)
 
         except Exception as e:
-            # Log and record error
-            self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
-            self.__get_resource_metric(self._failed_requests, procedure_name).inc()
-
             # Remove the result and add the error message
             response.pop("result", None)
             error_str = str(e)

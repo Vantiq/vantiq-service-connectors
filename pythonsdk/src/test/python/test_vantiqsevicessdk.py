@@ -77,6 +77,7 @@ def test_fire_forget():
         __handle_set_config(websocket)
         response = __invoke_procedure(websocket, "test_procedure", "123", options={"fire_forget": True})
         assert response['isEOF']
+        assert response.get('result', None) is None
         response = client.get("/metrics")
         assert response.status_code == 200
         result = response.text
