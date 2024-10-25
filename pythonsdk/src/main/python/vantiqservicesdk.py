@@ -149,8 +149,20 @@ class BaseVantiqServiceConnector:
                         await websocket.send_bytes('pong'.encode("utf-8"))
                         continue
 
-                    # Decode the message as JSON
-                    request = json.loads(msg_bytes.decode("utf-8"))
+                    # Decode the message as JSON, but make sure to catch any errors
+                    try:
+                        request = json.loads(msg_bytes.decode("utf-8"))
+                    except Exception as e:
+                        # couldn't deserialize the request, send back an error, but there's no way to know the requestId
+                        response = {"isEOF": True}
+                        # noinspection PyBroadException
+                        try:
+                            await websocket.send({"type": "websocket.send",
+                                                  "bytes": self._handle_exception(e, response)})
+                        except Exception:
+                            self._logger.error("Caught error sending error response", exc_info=True)
+                        continue
+                    
                     options = request.pop('options', {})
 
                     # Spawn a task to process the request and possibly send the response
@@ -227,19 +239,23 @@ class BaseVantiqServiceConnector:
             self._check_message_size(encoded_response)
 
         except Exception as e:
-            # Remove the result and add the error message
-            response.pop("result", None)
-            error_str = str(e)
-            if isinstance(e, KeyError):
-                error_str = f"Failed to find expected dict key: {error_str}"
-            response["errorMsg"] = error_str
-
-            # Serialize to JSON and encode (duplicated here to record JSON serialization errors)
-            encoded_response = json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+            encoded_response = self._handle_exception(e, response)
 
         # Send the response
         await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
+    @staticmethod
+    def _handle_exception(e: Exception, response: dict) -> bytes:
+        # Remove the result (if any) and add the error message
+        error_str = str(e)
+        response.pop("result", None)
+        if isinstance(e, KeyError):
+            error_str = f"Failed to find expected dict key: {error_str}"
+        response["errorMsg"] = error_str
+
+        # Serialize to JSON and encode (duplicated here to record JSON serialization errors)
+        return json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        
     def _check_message_size(self, encoded_message: bytes) -> None:
         config = self._client_config or {}
         max_size = config.get("maxMessageSize", -1)
