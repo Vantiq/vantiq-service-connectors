@@ -260,7 +260,7 @@ class BaseVantiqServiceConnector:
 
         # Serialize to JSON and encode (duplicated here to record JSON serialization errors)
         return json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    
+
     def _check_message_size(self, encoded_message: bytes) -> None:
         config = self._client_config or {}
         max_size = config.get("maxMessageSize", -1)
