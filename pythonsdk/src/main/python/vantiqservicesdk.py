@@ -158,11 +158,11 @@ class BaseVantiqServiceConnector:
                         # noinspection PyBroadException
                         try:
                             await websocket.send({"type": "websocket.send",
-                                                  "bytes": self._handle_exception(e, response)})
+                                                  "bytes": self._handle_exception(e, {}, response)})
                         except Exception:
                             self._logger.error("Caught error sending error response", exc_info=True)
                         continue
-                    
+
                     options = request.pop('options', {})
 
                     # Spawn a task to process the request and possibly send the response
@@ -187,33 +187,32 @@ class BaseVantiqServiceConnector:
                     task.cancel()
 
     async def __process_message(self, request: dict) -> Any:
+        # Get the procedure name and parameters
         self._logger.debug('Request was: %s', request)
-        procedure_name: str = 'unknown'
-        try:
-            # Get the procedure name and parameters
-            procedure_name = request.get("procName")
-            params = request.get("params")
+        procedure_name: str = request.get("procName", "unknown")
+        params = request.get("params")
 
-            # In the future, it should be set by an explicit value isSystemRequest. For compatibility reasons, we
-            # must accept appending "__system" to the requestId as equivalent
-            is_system_request = request.get("isSystemRequest", False) or request.get("requestId").endswith("__system")
+        # In the future, it should be set by an explicit value isSystemRequest. For compatibility reasons, we
+        # must accept appending "__system" to the requestId as equivalent
+        is_system_request = request.get("isSystemRequest", False) or request.get("requestId").endswith("__system")
 
-            # Invoke the procedure and store the result
-            request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
-            with request_timer.time():
-                result = await self.__invoke(procedure_name, params, is_system_request)
-                return result
-        except Exception as e:
-            # Log and record error
-            self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
-            self.__get_resource_metric(self._failed_requests, procedure_name).inc()
-            raise e
-    
+        # Invoke the procedure and store the result
+        request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
+        with request_timer.time():
+            result = await self.__invoke(procedure_name, params, is_system_request)
+            return result
+
     async def __fire_forget(self, websocket: WebSocket, request: dict) -> None:
+        # Send a response to indicate that the request was received
         response = self.encode_response({"requestId": request.get("requestId"), "isEOF": True})
         await websocket.send({"type": "websocket.send", "bytes": response})
-        await self.__process_message(request)
-    
+
+        # Process the message and ignore any exceptions
+        try:
+            await self.__process_message(request)
+        except Exception as e:
+            self._handle_exception(e, request, None)
+
     async def __request_response(self, websocket: WebSocket, request: dict) -> None:
         # Set up default response and invoke the procedure
         response = {"requestId": request.get("requestId"), "isEOF": True}
@@ -239,13 +238,19 @@ class BaseVantiqServiceConnector:
             self._check_message_size(encoded_response)
 
         except Exception as e:
-            encoded_response = self._handle_exception(e, response)
+            encoded_response = self._handle_exception(e, request, response)
 
         # Send the response
         await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
-    @staticmethod
-    def _handle_exception(e: Exception, response: dict) -> bytes:
+    def _handle_exception(self, e: Exception, request: dict, response: dict) -> bytes:
+        # Log and record error
+        procedure_name = request.get("procName", "unknown")
+        self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
+        self.__get_resource_metric(self._failed_requests, procedure_name).inc()
+        if response is None:
+            return b''
+
         # Remove the result (if any) and add the error message
         error_str = str(e)
         response.pop("result", None)
