@@ -5,7 +5,7 @@ of a Vantiq service to be implemented outside the Vantiq platform.  The typical 
 
 ## Overview of a Service Connector
 
-TBD...
+TBD...   Python Service Connectors are only used internally by Vantiq at this point.
 
 ## Building a Service Connector
 

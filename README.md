@@ -10,9 +10,8 @@ This repository contains the source code for VANTIQ service connectors as well a
 VANTIQ service connectors provide a means by which VANTIQ services can leverage native language implementations.
 
 In general a service connector can be arbitrary code written in support of any service defined in a VANTIQ system. At
-present, we support two use case scenarios:
+present, we support one use-case scenario:
 
-    - Python Service Connectors in support of interfacing with Large Language Models (LLMs) and related tools
     - Service Connectors that implement the Storage Manager API
 
 The two cases aren't mutually exclusive and there are likely to be additional uses for connectors going forward. For
@@ -41,10 +40,6 @@ caveats in the README, things in the `main` branch should be considered usable.
 The repository is set up to require reviews of pull requests (PRs) going into main.
 The primary purpose here is to maintain some level of consistency.
 
-# Python Service Connectors Overview
-
-TBD
-
 # Storage Manager Service Connectors Overview
 
 VANTIQ storage manager service connectors support the creation of native storage managers.
@@ -55,6 +50,10 @@ The service determines whether that implementation is provided via VAIL procedur
 Please refer to the
 [VANTIQ documentation on service connectors](https://api.vantiq.com/docs/system/storagemanagers/index.html#service-connectors)
 for details.
+
+# Python Service Connectors Overview
+
+TBD - Python Service Connectors are only used internally by Vantiq at this point.
 
 ## Overall Architecture
 
