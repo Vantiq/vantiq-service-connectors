@@ -223,7 +223,18 @@ class BaseVantiqServiceConnector:
                 async for data in result:
                     response = {"requestId": request.get("requestId"), "result": data}
                     encoded_response = self.encode_response(response)
-                    self._check_message_size(encoded_response)
+                    max_size = self._max_message_size
+                    if 0 < max_size < len(encoded_response):
+                        # Envelope overhead without re-serializing data: encode the wrapper with a null result.
+                        overhead = len(self.encode_response({**response, "result": None})) - len(b"null")
+                        reduced = self.reduce_oversized_result(data, max_size - overhead)
+                        if reduced is not None:
+                            # service trimmed it; re-encode once
+                            response["result"] = reduced
+                            encoded_response = self.encode_response(response)
+
+                        # raises if still over, or service declined
+                        self._check_message_size(encoded_response)
                     await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
                 # Initialize the final response
@@ -251,21 +262,33 @@ class BaseVantiqServiceConnector:
         if response is None:
             return b''
 
-        # Remove the result (if any) and add the error message
+        # Remove the result (if any) and add the error message. An error response always terminates the
+        # request, so mark it as the final response -- this matters for errors raised mid-stream, where
+        # the in-progress response does not yet carry isEOF.
         error_str = str(e)
         response.pop("result", None)
         if isinstance(e, KeyError):
             error_str = f"Failed to find expected dict key: {error_str}"
         response["errorMsg"] = error_str
+        response["isEOF"] = True
 
         # Serialize to JSON and encode (duplicated here to record JSON serialization errors)
         return json.dumps(response, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-        
+
+    @property
+    def _max_message_size(self):
+        config = self._client_config or {}
+        return config.get("maxMessageSize", -1)
+
     def _check_message_size(self, encoded_message: bytes) -> None:
         config = self._client_config or {}
         max_size = config.get("maxMessageSize", -1)
         if (max_size > 0) and (len(encoded_message) > max_size):
             raise Exception(f"Message size {len(encoded_message)} exceeds maximum size {max_size}")
+
+    def reduce_oversized_result(self, result: Any, max_size: int) -> Any:
+        # Return a trimmed result to send, or None to make no change (the caller then raises).
+        return None
 
     def encode_response(self, response: dict) -> bytes:
         text = json.dumps(response, separators=(",", ":"), ensure_ascii=False,

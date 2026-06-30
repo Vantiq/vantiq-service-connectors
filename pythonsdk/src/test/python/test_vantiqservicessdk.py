@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 
@@ -231,6 +232,55 @@ def test_default_message_size():
         assert response['requestId'] == "123"
         assert response['isEOF']
         assert len(response['result']) == size
+
+def test_reduce_oversized_result():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        # Limit the message size so each streamed item is oversized
+        max_size = 1000
+        config = {"maxMessageSize": max_size}
+        __handle_set_config(websocket, config)
+
+        try:
+            # Each yielded item is larger than max_size, so the connector's
+            # reduce_oversized_result hook should trim it down so it can be sent.
+            count = 3
+            size = max_size * 2
+            response = __invoke_procedure(websocket, "stream_x", "123",
+                                          {"size": size, "count": count})
+            assert isinstance(response, list)
+            # One response per streamed item plus the final EOF response
+            assert len(response) == count + 1
+            for i in range(count):
+                # The hook ran (no error) and trimmed the result so it fits
+                result = response[i]['result']
+                assert isinstance(result, str)
+                assert 0 < len(result) < size
+                assert set(result) == {"x"}
+                # The full encoded message must respect the configured limit
+                encoded = json.dumps(response[i], separators=(",", ":")).encode("utf-8")
+                assert len(encoded) <= max_size
+            assert response[count]['isEOF']
+        finally:
+            __handle_clear_config(websocket)
+
+
+def test_reduce_oversized_result_declined():
+    with client.websocket_connect("/wsock/websocket") as websocket:
+        # Limit the message size so the streamed item is oversized
+        max_size = 1000
+        config = {"maxMessageSize": max_size}
+        __handle_set_config(websocket, config)
+
+        try:
+            # The hook declines to trim a non-string result, so the oversized message should surface
+            # as a terminal error (with isEOF) rather than being sent or hanging the stream.
+            response = __invoke_procedure(websocket, "stream_list", "123", {"size": max_size})
+            assert response['requestId'] == "123"
+            assert response['isEOF']
+            assert "exceeds maximum size 1000" in response['errorMsg']
+        finally:
+            __handle_clear_config(websocket)
+
 
 def test_key_error():
     with client.websocket_connect("/wsock/websocket") as websocket:
