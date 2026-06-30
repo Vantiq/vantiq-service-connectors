@@ -1,3 +1,5 @@
+from typing import Any
+
 from typing_extensions import override
 from vantiqservicesdk import BaseVantiqServiceConnector, LoggerConfig, system_only
 
@@ -45,6 +47,24 @@ class TestServiceConnector(BaseVantiqServiceConnector):
     # noinspection PyMethodMayBeStatic
     def echo_x(self, size: int):
         return "x" * size
+
+    # noinspection PyMethodMayBeStatic
+    async def stream_x(self, size: int, count: int = 3):
+        for _ in range(count):
+            yield "x" * size
+
+    # noinspection PyMethodMayBeStatic
+    async def stream_list(self, size: int):
+        # Yields a non-string oversized result, which reduce_oversized_result declines to trim.
+        yield list(range(size))
+
+    @override
+    def reduce_oversized_result(self, result: Any, max_size: int) -> Any:
+        # Trim oversized string results to fit, accounting for the surrounding JSON quotes.
+        # Returning None (the default) leaves the result unchanged so the caller raises.
+        if isinstance(result, str) and max_size > 2:
+            return result[:max_size - 2]
+        return None
 
     # noinspection PyMethodMayBeStatic
     def key_error(self):
