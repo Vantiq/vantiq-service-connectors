@@ -13,7 +13,7 @@ plugins {
     id 'pl.allegro.tech.build.axion-release' version '1.13.14'
     id "com.jfrog.artifactory" version "4.31.4" apply false
     id 'jacoco'
-    id 'com.vantiq.gradle-dcompose-plugin' version '0.18.0' apply false
+    id 'com.vantiq.gradle-dcompose-plugin' version '0.19.0' apply false
 }
 
 wrapper {
