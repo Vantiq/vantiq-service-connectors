@@ -7,13 +7,15 @@ import os
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from enum import Enum
 from os.path import exists
 from threading import Thread
-from typing import Union, Any, Set, TypeVar, List, Callable
+from typing import Union, Any, Set, TypeVar, List, Callable, Iterable
 
 import yaml
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect
-from prometheus_client import make_asgi_app, Gauge, Counter, Summary
+from prometheus_client import make_asgi_app, Gauge, Counter, Summary, CollectorRegistry, Metric
+from prometheus_client.registry import Collector
 from vantiqsdk import Vantiq
 
 SET_CLIENT_CONFIG_MSG = '_setClientConfig'
@@ -410,3 +412,63 @@ class LoggerConfig:
                 logging.config.dictConfig(config)
                 last_timestamp = current_timestamp
             time.sleep(self._monitor_interval)
+
+
+class InvocationStyle(Enum):
+    """
+    Enumeration of the invocation styles used when a Vantiq service procedure/component is invoked on a
+    connector. The values MUST match the InvocationStyle enum in the Vantiq server.
+    """
+    standard = 0
+    streaming = 1
+    events = 2
+
+
+class VantiqClientContext:
+    """Interface for a context from which connector code obtains access to Vantiq server resources."""
+
+    async def get_vantiq_client(self) -> Vantiq:
+        """Return a Vantiq client."""
+        pass
+
+    async def get_client_config(self) -> dict:
+        """Return the client configuration."""
+        pass
+
+    def get_resource_cache(self):
+        """Return the resource cache, if the context maintains one."""
+        pass
+
+
+class VantiqCollectorRegistry(CollectorRegistry):
+    """A Prometheus CollectorRegistry that can look a registered collector up by name."""
+
+    def find_collector_by_name(self, name: str) -> Union[Collector, None]:
+        """Find a registered collector by name.
+
+        Args:
+            name (str): The name of the collector to find.
+
+        Returns:
+            Collector | None: The collector if found, otherwise None.
+        """
+        for collector in self._collector_to_names:
+            names = self._get_names(collector)
+            if name in names:
+                return collector
+        return None
+
+
+class CounterWithReset(Counter):
+    """A Counter metric that resets to zero after each collection. This aligns with the step counters
+    used by Influx."""
+
+    def collect(self) -> Iterable[Metric]:
+        metrics = super().collect()
+        if self._is_parent():
+            for child in self._metrics.values():
+                # noinspection PyUnresolvedReferences
+                child.reset()
+        else:
+            self.reset()
+        return metrics
