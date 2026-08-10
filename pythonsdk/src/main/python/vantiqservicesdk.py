@@ -184,7 +184,6 @@ class BaseVantiqServiceConnector:
             except WebSocketDisconnect:
                 # Clear the config in case it changes before the next connection
                 await self._clear_client_config()
-                pass
 
             finally:
                 # Cancel all active requests
