@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 from enum import Enum
 from os.path import exists
 from threading import Thread
-from typing import Union, Any, Set, TypeVar, List, Callable, Iterable
+from typing import Union, Any, Set, TypeVar, List, Callable, Iterable, Optional
 
 import yaml
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect
@@ -73,7 +73,7 @@ class BaseVantiqServiceConnector:
         cur_class = self.__class__
         self._logger = logging.getLogger(f"{cur_class.__module__}.{cur_class.__name__}")
 
-    # noinspection PyUnusedLocal
+    # noinspection PyUnusedLocal,unused-parameter
     @asynccontextmanager
     async def __lifespan(self, app):
         await self._startup()
@@ -98,6 +98,8 @@ class BaseVantiqServiceConnector:
         async with self._config_set:
             if self._client_config is None:
                 await self._config_set.wait()
+            if self._client_config is None:
+                raise RuntimeError('Client config not set')
             return self._client_config
 
     async def _set_client_config(self, config: dict) -> bool:
@@ -180,7 +182,8 @@ class BaseVantiqServiceConnector:
                         task.add_done_callback(__complete_request)
 
             except WebSocketDisconnect:
-                pass
+                # Clear the config in case it changes before the next connection
+                await self._clear_client_config()
 
             finally:
                 # Cancel all active requests
@@ -192,11 +195,11 @@ class BaseVantiqServiceConnector:
         # Get the procedure name and parameters
         self._logger.debug('Request was: %s', request)
         procedure_name: str = request.get("procName", "unknown")
-        params = request.get("params")
+        params = request.get("params", {})
 
         # In the future, it should be set by an explicit value isSystemRequest. For compatibility reasons, we
         # must accept appending "__system" to the requestId as equivalent
-        is_system_request = request.get("isSystemRequest", False) or request.get("requestId").endswith("__system")
+        is_system_request = request.get("isSystemRequest", False) or request.get("requestId", "").endswith("__system")
 
         # Invoke the procedure and store the result
         request_timer = self.__get_resource_metric(self._resources_executions, procedure_name)
@@ -256,7 +259,7 @@ class BaseVantiqServiceConnector:
         # Send the response
         await websocket.send({"type": "websocket.send", "bytes": encoded_response})
 
-    def _handle_exception(self, e: Exception, request: dict, response: dict) -> bytes:
+    def _handle_exception(self, e: Exception, request: dict, response: Optional[dict]) -> bytes:
         # Log and record error
         procedure_name = request.get("procName", "unknown")
         self._logger.debug(f"Error invoking procedure {procedure_name}", exc_info=e)
@@ -373,7 +376,7 @@ class LoggerConfig:
     """
     DEFAULT_MONITORING_INTERVAL = 2 * 60
 
-    def __init__(self, config_files: List[str] = None, monitor_interval: int = None):
+    def __init__(self, config_files: Optional[List[str]] = None, monitor_interval: Optional[int] = None):
         self._logger = logging.getLogger(__name__)
         self._config_files = config_files or []
         self._config_files.append('logger.yaml')
