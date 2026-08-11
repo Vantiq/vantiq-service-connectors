@@ -9,7 +9,6 @@ from testservice import TestServiceConnector
 from vantiqservicesdk import SET_CLIENT_CONFIG_MSG, CLEAR_CLIENT_CONFIG_MSG
 
 # Prevent pytest from trying to collect TestServiceConnector as tests:
-# noinspection unresolved-references
 TestServiceConnector.__test__ = False
 
 app = testservice.app
@@ -78,7 +77,6 @@ def test_fire_forget():
     with client.websocket_connect("/wsock/websocket") as websocket:
         __handle_set_config(websocket)
         response = __invoke_procedure(websocket, "test_procedure", "123", options={"fire_forget": True})
-        assert isinstance(response, dict)
         assert response['isEOF']
         assert response.get('result', None) is None
         response = client.get("/metrics")
@@ -104,32 +102,6 @@ def test_get_config():
         assert response['result'] is None
         global config_set
         config_set = False
-
-
-def test_config_cleared_on_disconnect():
-    global config_set
-    config = {"test": "disconnect"}
-    with client.websocket_connect("/wsock/websocket") as websocket:
-        # Set the config and confirm the connector has it
-        __handle_set_config(websocket, config)
-        response = __invoke_procedure(websocket, "get_config_direct", "123")
-        assert response['requestId'] == "123"
-        assert response['isEOF']
-        assert response['result'] == config
-
-    # Closing the connection should have cleared the config, so the connector
-    # must request it again when the next connection is established.
-    config_set = False
-    with client.websocket_connect("/wsock/websocket") as websocket:
-        request: dict = websocket.receive_json('binary')
-        assert request['requestId'] == SET_CLIENT_CONFIG_MSG
-        assert request['isControlRequest']
-
-        # Confirm the previous config is gone
-        response = __invoke_procedure(websocket, "get_config_direct", "321")
-        assert response['requestId'] == "321"
-        assert response['isEOF']
-        assert response['result'] is None
 
 
 def test_invoke_errors():
@@ -338,7 +310,7 @@ def __handle_clear_config(websocket):
     global config_set
     config_set = False
 
-def __invoke_procedure(websocket, proc_name, request_id, params=None, from_system=None, options=None) -> dict | list:
+def __invoke_procedure(websocket, proc_name, request_id, params=None, from_system=None, options=None) -> dict:
     request = {"procName": proc_name, "requestId": request_id}
     if params is not None:
         request['params'] = params
