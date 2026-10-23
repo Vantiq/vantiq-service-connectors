@@ -16,7 +16,8 @@ import yaml
 from fastapi import FastAPI, APIRouter, WebSocket, WebSocketDisconnect
 from prometheus_client import make_asgi_app, Gauge, Counter, Summary, CollectorRegistry, Metric
 from prometheus_client.registry import Collector
-from vantiqsdk import Vantiq
+from vantiqsdk import (Vantiq, Currency, GeoJSON, ResourceReference, VantiqType, from_vantiq, to_vantiq,
+                       vantiq_json_default)
 
 SET_CLIENT_CONFIG_MSG = '_setClientConfig'
 CLEAR_CLIENT_CONFIG_MSG = '_clearClientConfig'
@@ -298,7 +299,8 @@ class BaseVantiqServiceConnector:
         return text.encode("utf-8")
 
     def to_json(self, obj: Any) -> Any:
-        raise TypeError(f'Object of type {obj.__class__.__name__} is not JSON serializable')
+        # Encodes the Python forms of Vantiq types (Currency, Decimal, datetime, ...); override to add more.
+        return vantiq_json_default(obj)
 
     async def __invoke(self, procedure_name: str, params: dict, is_system_request: bool) -> Any:
         # Confirm that we have a procedure name
@@ -422,6 +424,49 @@ class InvocationStyle(Enum):
     standard = 0
     streaming = 1
     events = 2
+
+
+PROCEDURE_OVERRIDES_ATTR = '__vantiq_procedure__'
+
+
+def procedure(return_type: Union[str, None] = None, param_types: Union[dict, None] = None,
+              invocation_style: Union[InvocationStyle, str, None] = None) -> Callable:
+    """
+    Decorator for a procedure of a Python service that overrides what Vantiq derives from its type hints.
+    ``return_type`` is a Vantiq type name, ``param_types`` maps parameter names to Vantiq type names
+    (parameters not mentioned keep their derived types), and ``invocation_style`` is an InvocationStyle
+    (or its name) for a procedure whose return does not reveal how it is invoked.
+
+    The function is returned unchanged with the overrides stored on it as ``__vantiq_procedure__``.
+    """
+    if callable(return_type):   # used as a bare @procedure
+        return procedure()(return_type)
+    if return_type is not None and not isinstance(return_type, str):
+        raise TypeError('return_type must be a Vantiq type name')
+    if param_types is not None and (not isinstance(param_types, dict) or
+                                    not all(isinstance(k, str) and isinstance(v, str)
+                                            for k, v in param_types.items())):
+        raise TypeError('param_types must map parameter names to Vantiq type names')
+    if isinstance(invocation_style, str):
+        try:
+            invocation_style = InvocationStyle[invocation_style]
+        except KeyError:
+            raise ValueError(f'invocation_style must be one of {[s.name for s in InvocationStyle]}') from None
+    elif invocation_style is not None and not isinstance(invocation_style, InvocationStyle):
+        raise TypeError('invocation_style must be an InvocationStyle or its name')
+    overrides = {}
+    if return_type is not None:
+        overrides['return_type'] = return_type
+    if param_types is not None:
+        overrides['param_types'] = param_types
+    if invocation_style is not None:
+        overrides['invocation_style'] = invocation_style.name
+
+    def decorate(func: Callable) -> Callable:
+        setattr(func, PROCEDURE_OVERRIDES_ATTR, overrides)
+        return func
+
+    return decorate
 
 
 class VantiqClientContext:
