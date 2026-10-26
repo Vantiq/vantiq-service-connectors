@@ -28,3 +28,26 @@ from vantiqservicesdk import BaseVantiqServiceConnector
 
 More details TBD...
 
+## Vantiq types and procedure metadata
+
+The SDK re-exports the Python forms of the Vantiq types that plain Python types cannot express, from
+[vantiqsdk](https://github.com/Vantiq/vantiq-python-sdk/blob/master/docs/api.md#vantiq-types):
+`Currency`, `GeoJSON`, `ResourceReference`, `VantiqType`, and the converters `from_vantiq` and
+`to_vantiq`. A connector response is encoded with `vantiq_json_default`, so a procedure can return a
+`Currency`, a `Decimal`, or a `datetime` directly; override `to_json` on the connector to encode further
+types.
+
+`@procedure` records overrides for a procedure of a Python service when its type hints cannot express
+the Vantiq signature:
+
+```python
+from vantiqservicesdk import Currency, procedure
+
+@procedure(return_type='Currency', param_types={'amount': 'Currency'})
+def total_due(account: str, amount) -> object:
+    ...
+```
+
+It accepts `return_type` (a Vantiq type name), `param_types` (parameter name to Vantiq type name), and
+`invocation_style` (an `InvocationStyle` or its name), and stores them on the function as
+`__vantiq_procedure__`.
